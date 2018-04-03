@@ -86,18 +86,25 @@ def parse_yatemessage(bytes_input):
     elif messagetype == "%>setlocal":
         pass
 
+
 class MessageFromYate:
 
     def __init__(self, id, time, name, returnvalue, params):
-        self._id = id
-        self._time = time
-        self._name = name
-        self._returnvalue = returnvalue
-        self._params = params
+        self.id = id
+        self.time = time
+        self.name = name
+        self.returnvalue = returnvalue
+        self.params = params
 
-    def encode_for_yate(self, processed):
+    def encode_answer_for_yate(self, processed):
         processed = str(processed).lower()
-        return yate_encode_join("%<message", self._id, processed, "", self._returnvalue, *["=".join(item) for item in self._params.items()])
+        return yate_encode_join("%<message",
+                                self.id,
+                                processed,
+                                "",
+                                self.returnvalue,
+                                *["=".join(item) for item in self.params.items()])
+
 
 class InstallToYate:
 
@@ -115,11 +122,13 @@ class InstallToYate:
                 extraargs.append(self._filtervalue)
         return yate_encode_join("%>install", self._priority, self._name, *extraargs)
 
+
 class InstallFromYate:
     def __init__(self, priority, name, success):
-        self._priority = priority
-        self._name  = name
-        self._success = success
+        self.priority = priority
+        self.name = name
+        self.success = success
+
 
 class WatchFromYate:
 
