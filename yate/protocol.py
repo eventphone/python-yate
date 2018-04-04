@@ -1,5 +1,3 @@
-
-
 def yate_decode_bytes(byte_input):
     output = b""
     escaped = False
@@ -20,16 +18,10 @@ def yate_decode_bytes(byte_input):
     return output
 
 
-''' Encode a sequence of bytes to be sent to yate
-
-Args:
-    byte_input (str): sequence of bytes to be encoded
-
-'''
 def yate_encode_bytes(byte_input):
     output = b""
     for b in byte_input:
-        if b<32 or b == ord(":"):
+        if b < 32 or b == ord(":"):
             output += b"%"+bytes([(b+64)])
         elif b == ord("%"):
             output += b"%%"
@@ -37,77 +29,96 @@ def yate_encode_bytes(byte_input):
             output += bytes([b])
     return output
 
+
 def yate_decode_split(bytes_input):
     output = bytes_input.split(b":")
     output = [yate_decode_bytes(param).decode("utf-8") for param in output]
     return output
 
+
 def yate_encode_join(*args):
     output = [yate_encode_bytes(param.encode("utf-8")) for param in args]
     return b":".join(output)
 
+
 def yate_parse_keyvalue(params):
     output = {}
     for param in params:
-        key, value = param.split("=",1)
+        res = param.split("=", 1)
+        if len(res) == 2:
+            key, value = res
+        else:
+            key = param
+            value = ""
         output[key] = value
     return output
 
 
-def parse_yatemessage(bytes_input):
-    splitted = yate_decode_split(bytes_input)
-    messagetype = splitted[0]
-    if messagetype == "%>message":
-        id = splitted[1]
-        time = splitted[2]
-        name = splitted[3]
-        returnvalue = splitted[4]
-        params = yate_parse_keyvalue(splitted[5:])
-        message = MessageFromYate(id, time, name, returnvalue, params)
-        return message
-        pass
-    elif messagetype == "%>install":
-        priority = splitted[1]
-        name = splitted[2]
-        success = True if splitted[3] == "true" else False
-        message = InstallFromYate(priority, name, success)
-        return message
-        pass
-    elif messagetype == "%>uninstall":
-        pass
-    elif messagetype == "%>watch":
-        name = splitted[1]
-        success = splitted[2]
-        message = WatchFromYate(name, success)
-        return message
-        pass
-    elif messagetype == "%>unwatch":
-        pass
-    elif messagetype == "%>setlocal":
-        pass
+class YateMessageParsingError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
+def parse_yate_message(bytes_input):
+    split_msg = yate_decode_split(bytes_input)
+    message_type = split_msg[0]
+    message_class = _yate_message_type_table.get(message_type)
+    if message_class is None:
+        raise YateMessageParsingError("Unknown message type: {}".format(message_type))
+    return message_class.parse(split_msg)
 
 
 class MessageFromYate:
+    @classmethod
+    def parse(cls, data):
+        if len(data) < 5:
+            raise YateMessageParsingError("Invalid message from yate with only {} parameters".format(len(data)))
+        id = data[1]
+        try:
+            time = int(data[2])
+        except ValueError:
+            raise YateMessageParsingError("Invalid message time from yate: {}".format(data[2]))
+        name = data[3]
+        return_value = data[4]
+        params = yate_parse_keyvalue(data[5:])
+        reply = (data[0] == "%<message")
+        return cls(id, time, name, return_value, params, reply)
 
-    def __init__(self, id, time, name, returnvalue, params):
+    def __init__(self, id, time, name, return_value, params, reply=False):
+        self.msg_type = "message"
         self.id = id
         self.time = time
         self.name = name
-        self.returnvalue = returnvalue
+        self.return_value = return_value
         self.params = params
+        self.reply = reply
 
     def encode_answer_for_yate(self, processed):
         processed = str(processed).lower()
         return yate_encode_join("%<message",
                                 self.id,
                                 processed,
-                                "",
-                                self.returnvalue,
+                                self.name,
+                                self.return_value,
+                                *["=".join(item) for item in self.params.items()])
+
+
+class MessageToYate:
+    def __init__(self, name, return_value, params):
+        self.name = name
+        self.return_value = return_value
+        self.params = params
+
+    def encode(self, id, timestamp):
+        return yate_encode_join("%>message",
+                                id,
+                                str(int(timestamp)),
+                                self.name,
+                                self.return_value,
                                 *["=".join(item) for item in self.params.items()])
 
 
 class InstallToYate:
-
     def __init__(self, prioriy, name, filtername=None, filtervalue=None):
         self._priority = str(prioriy)
         self._name = name
@@ -123,15 +134,110 @@ class InstallToYate:
         return yate_encode_join("%>install", self._priority, self._name, *extraargs)
 
 
-class InstallFromYate:
+class InstallUninstallBase:
+    @classmethod
+    def parse(cls, data):
+        if len(data) < 4:
+            raise YateMessageParsingError("Invalid install/uninstall from yate with only {} parameters".format(len(data)))
+        try:
+            priority = int(data[1])
+        except ValueError:
+            raise YateMessageParsingError("Invalid priority value received: {}".format(data[1]))
+        name = data[2]
+        success = data[3].lower() == "true"
+        return cls(priority, name, success)
+
+
+class InstallFromYate(InstallUninstallBase):
     def __init__(self, priority, name, success):
+        self.msg_type = "install"
         self.priority = priority
         self.name = name
         self.success = success
 
 
+class UninstallToYate:
+    def __init__(self, name):
+        self.name = name
+
+    def encode(self):
+        return yate_encode_join("%>uninstall", self.name)
+
+
+class UninstallFromYate(InstallUninstallBase):
+    def __init__(self, priority, name, success):
+        self.msg_type = "uninstall"
+        self.priority = priority
+        self.name = name
+        self.success = success
+
+
+class WatchToYate:
+    def __init__(self, name):
+        self.name = name
+
+    def encode(self):
+        return yate_encode_join("%>watch", self.name)
+
+
 class WatchFromYate:
+    @classmethod
+    def parse(cls, data):
+        if len(data) < 3:
+            raise YateMessageParsingError("Invalid watch from yate with only {} parameters".format(len(data)))
+        name = data[1]
+        success = data[2].lower() == "true"
+        return cls(name, success)
 
     def __init__(self, name, success):
-        self._name = name
-        self._success = success
+        self.msg_type = "watch"
+        self.name = name
+        self.success = success
+
+
+class UnwatchToYate:
+    def __init__(self, name):
+        self.name = name
+
+    def encode(self):
+        return yate_encode_join("%>unwatch", self.name)
+
+
+class UnwatchFromYate:
+    @classmethod
+    def parse(cls, data):
+        if len(data) < 3:
+            raise YateMessageParsingError("Invalid unwatch from yate with only {} parameters".format(len(data)))
+        name = data[1]
+        success = data[2].lower() == "true"
+        return cls(name, success)
+
+    def __init__(self, name, success):
+        self.msg_type = "unwatch"
+        self.name = name
+        self.success = success
+
+
+class ConnectToYate:
+    def __init__(self, role="global", id=None, type=None):
+        self.role = role
+        self.id = id
+        self.type = type
+
+    def encode(self):
+        params = [self.role]
+        if self.id is not None:
+            params.append(self.id)
+            if self.type is not None:
+                params.append(self.type)
+        return yate_encode_join("%>connect", *params)
+
+
+_yate_message_type_table = {
+    "%>message" : MessageFromYate,
+    "%<message" : MessageFromYate,
+    "%<install" : InstallFromYate,
+    "%<uninstall" : UninstallFromYate,
+    "%<watch" : WatchFromYate,
+    "%<unwatch" : UnwatchFromYate,
+}
