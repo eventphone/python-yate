@@ -7,7 +7,7 @@ def yate_decode_bytes(byte_input):
                 output += bytes([b])
             else:
                 if b < 64:
-                    raise Exception("Unable to decode yate shitty bytes")
+                    raise YateMessageParsingError("Received invalid yate encoding: {} after %".format(hex(b)))
                 output += bytes([(b-64)])
             escaped = False
         else:
