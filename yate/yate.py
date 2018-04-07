@@ -129,7 +129,7 @@ class YateBase:
         if msg.reply is False:
             handler = self._message_handlers.get(msg.name)
             if handler is None:
-                logger.warning("Yate sent us a message we did not subscribe for: {}".format(message.name))
+                logger.warning("Yate sent us a message we did not subscribe for: {}".format(msg.name))
                 return
             handler.callback(msg)
         else:
@@ -159,6 +159,6 @@ class YateBase:
             message = parse_yate_message(raw_data)
         except Exception as e:
             logging.error("Incoming yate message did not parse: {}".format(str(e)))
-            return # for now ignore messages with parsing errors
+            return  # for now ignore messages with parsing errors
         if hasattr(self, "_handle_yate_{}".format(message.msg_type)):
             getattr(self, "_handle_yate_{}".format(message.msg_type))(message)
