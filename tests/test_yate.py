@@ -2,12 +2,11 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from yate import yate
-from yate.protocol import MessageFromYate
+from yate.protocol import MessageFromYate, MessageToYate
 from yate.yate import YateBase
 
 
 class YateBaseMessageHandlerSetupTests(unittest.TestCase):
-
     @patch.object(YateBase, "_send_message_raw")
     def test_message_handler_install(self, mock_method):
         y = YateBase()
@@ -73,6 +72,124 @@ class YateBaseMessageHandlerSetupTests(unittest.TestCase):
         msg2 = MessageFromYate("0xdeadbeef", 4712, "chan.attach", "false", {})
         y._handle_yate_message(msg2)
         callback_mock.assert_not_called()
+
+
+class YateMessageProcessingTests(unittest.TestCase):
+    def setUp(self):
+        self.y = YateBase()
+        self.y._get_timestamp = MagicMock()
+
+    @patch.object(YateBase, "_send_message_raw")
+    def test_message_encoding(self, moc_method):
+        msg = MessageToYate("chan.attach", "res", {"target": "sip/5"})
+
+        self.y._get_timestamp.return_value = 1234
+        self.y.send_message(msg, fire_and_forget=True)
+        moc_method.assert_called_with(b"%%>message:" + self.y._session_id.encode()
+                                      + b".1:1234:chan.attach:res:target=sip/5")
+
+        moc_method.reset_mock()
+
+        self.y._get_timestamp.return_value = 1546
+        self.y.send_message(msg, fire_and_forget=True)
+        moc_method.assert_called_with(b"%%>message:" + self.y._session_id.encode()
+                                      + b".2:1546:chan.attach:res:target=sip/5")
+
+    def test_message_response_callback_mechanism(self):
+        callback_mock = MagicMock()
+        self.y._get_timestamp.return_value = 42
+
+        msg = MessageToYate("chan.attach", "resultVal", {"target": "sip/2"})
+        self.y.send_message(msg, callback_mock)
+        self.assertIn(self.y._session_id + ".1", self.y._requested_messages)
+
+        msg_reply = MessageFromYate(self.y._session_id + ".1", 42, "chan.attach", "result",
+                                    {"target": "sip/2", "notify": "true"}, reply=True)
+        self.y._handle_yate_message(msg_reply)
+
+        self.assertNotIn(self.y._session_id + ".1", self.y._requested_messages)
+        callback_mock.assert_called_with(msg, msg_reply)
+
+    @patch.object(YateBase, "_send_message_raw")
+    def test_message_answer_mechanism(self, mock_method):
+        callback_mock = MagicMock()
+        mh = yate.MessageHandler("call.execute", 80, callback_mock, None, None)
+        mh.installed = True
+        self.y._message_handlers["call.execute"] = mh
+
+        msg = MessageFromYate("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
+        self.y._handle_yate_message(msg)
+        callback_mock.assert_called_with(msg)
+
+        msg.params["caller"] = "you"
+        self.y.answer_message(msg, True)
+        mock_method.assert_called()
+        answer_raw = mock_method.call_args[0][0]
+        self.assertTrue(answer_raw.startswith(b"%%<message:0xdeadc0de:true:call.execute:false:"))
+        self.assertTrue(answer_raw.find(b"caller=you") >= 0)
+        self.assertTrue(answer_raw.find(b"target=0815") >= 0)
+
+
+class YateWatchProcessingTests(unittest.TestCase):
+    def setUp(self):
+        self.y = YateBase()
+
+    @patch.object(YateBase, "_send_message_raw")
+    def test_install_watch_handler(self, mock_method):
+        self.y.register_watch_handler("chan.notify", lambda: True)
+
+        self.assertIn("chan.notify", self.y._watch_handlers)
+        handler = self.y._watch_handlers["chan.notify"]
+        self.assertFalse(handler.installed)
+        self.assertFalse(handler.uninstalled)
+        mock_method.assert_called_with(b"%%>watch:chan.notify")
+
+        self.y._recv_message_raw(b"%%<watch:chan.notify:true")
+        self.assertTrue(handler.installed)
+
+    @patch.object(YateBase, "_send_message_raw")
+    def test_uninstall_watch_handler(self, mock_method):
+        handler = yate.WatchHandler("chan.notify", lambda: True)
+        handler.installed = True
+        self.y._watch_handlers["chan.notify"] = handler
+
+        self.y.unregister_watch_handler("chan.notify")
+        mock_method.assert_called_with(b"%%>unwatch:chan.notify")
+        self.assertTrue(handler.uninstalled)
+
+        self.y._recv_message_raw(b"%%<unwatch:chan.notify:true")
+        self.assertNotIn("chan.notify", self.y._watch_handlers)
+
+    def test_watch_handler_recv_message(self):
+        callback_mock = MagicMock()
+        handler = yate.WatchHandler("chan.notify", callback_mock)
+        handler.installed = True
+        self.y._watch_handlers["chan.notify"] = handler
+
+        msg = MessageFromYate("0xDEAD.1", None, "chan.notify", "val", {"target": "wave/2"}, True, True)
+        self.y._handle_yate_message(msg)
+
+        callback_mock.assert_called_with(msg)
+
+    def test_universal_watch_handler_recv_message(self):
+        callback_mock = MagicMock()
+        handler = yate.WatchHandler("", callback_mock)
+        handler.installed = True
+        self.y._watch_handlers[""] = handler
+
+        msg = MessageFromYate("0xDEAD.1", None, "chan.dtmf", "val", {"target": "wave/2"}, True, True)
+        self.y._handle_yate_message(msg)
+
+        callback_mock.assert_called_with(msg)
+
+
+class YateConnectTests(unittest.TestCase):
+    @patch.object(YateBase, "_send_message_raw")
+    def test_connect(self, mock_method):
+        y = YateBase()
+        y.send_connect()
+        mock_method.assert_called_with(b"%%>connect:global")
+
 
 if __name__ == '__main__':
     unittest.main()

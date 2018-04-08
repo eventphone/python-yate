@@ -73,21 +73,27 @@ class MessageFromYate:
     def parse(cls, data):
         if len(data) < 5:
             raise YateMessageParsingError("Invalid message from yate with only {} parameters".format(len(data)))
+        reply = (data[0] == "%<message")
         id = data[1]
-        try:
-            time = int(data[2])
-        except ValueError:
-            raise YateMessageParsingError("Invalid message time from yate: {}".format(data[2]))
+        if reply:
+            time = None
+            processed = data[1].lower() == "true"
+        else:
+            processed = None
+            try:
+                time = int(data[2])
+            except ValueError:
+                raise YateMessageParsingError("Invalid message time from yate: {}".format(data[2]))
         name = data[3]
         return_value = data[4]
         params = yate_parse_keyvalue(data[5:])
-        reply = (data[0] == "%<message")
-        return cls(id, time, name, return_value, params, reply)
+        return cls(id, time, name, return_value, params, processed, reply)
 
-    def __init__(self, id, time, name, return_value, params, reply=False):
+    def __init__(self, id, time, name, return_value, params, processed=None, reply=False):
         self.msg_type = "message"
         self.id = id
         self.time = time
+        self.processed = processed
         self.name = name
         self.return_value = return_value
         self.params = params

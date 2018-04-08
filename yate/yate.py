@@ -3,7 +3,7 @@ import random
 import string
 import time
 
-from yate.protocol import parse_yate_message, InstallToYate, UninstallToYate, WatchToYate, UnwatchToYate
+from yate.protocol import parse_yate_message, InstallToYate, UninstallToYate, WatchToYate, UnwatchToYate, ConnectToYate
 
 logger = logging.getLogger("yate")
 
@@ -46,6 +46,10 @@ class YateBase:
         self._requested_messages = {}
         self._msg_id = 1
         self._session_id = session_id_generator()
+
+    def send_connect(self):
+        msg = ConnectToYate()
+        self._send_message_raw(msg.encode())
 
     def register_message_handler(self, message, callback, priority=100, filter_attribute=None, filter_value=None,
                                  install=True):
@@ -97,6 +101,10 @@ class YateBase:
             req = MessageRequest(msg, msg_id_str, timestamp, callback)
             self._requested_messages[msg_id_str] = req
 
+    def answer_message(self, msg, processed):
+        raw_message = msg.encode_answer_for_yate(processed)
+        self._send_message_raw(raw_message)
+
     def _handle_yate_install(self, msg):
         handler = self._message_handlers.get(msg.name)
         if handler is None:
@@ -143,9 +151,11 @@ class YateBase:
                     if handler is None:
                         # this is probably caused by fire and forget mode
                         logger.debug("Got unprocessed message of type {}".format(msg.name))
+                        return
                 handler.callback(msg)
             else:
                 req.callback(req.msg, msg)
+                del self._requested_messages[msg.id]
 
     def _get_timestamp(self):
         # This function exists mostly for test mocking
