@@ -28,6 +28,16 @@ class YateBaseMessageHandlerSetupTests(unittest.TestCase):
         y._recv_message_raw(b"%%<install:100:call.execute:true")
         self.assertTrue(handler.installed)
 
+    def test_message_handler_install_done_callback(self):
+        y = YateBase()
+        done_callback_mock = MagicMock()
+        y.register_message_handler("call.execute", lambda: True, 100, "myattrib", "myvalue",
+                                   done_callback=done_callback_mock)
+        done_callback_mock.assert_not_called()
+
+        y._recv_message_raw(b"%%<install:100:call.execute:true")
+        done_callback_mock.assert_called_with(True)
+
     @patch.object(YateBase, "_send_message_raw")
     def test_message_handler_noinstall(self, mock_method):
         y = YateBase()
@@ -146,6 +156,14 @@ class YateWatchProcessingTests(unittest.TestCase):
 
         self.y._recv_message_raw(b"%%<watch:chan.notify:true")
         self.assertTrue(handler.installed)
+
+    def test_install_watch_handler_done_callback(self):
+        done_callback_mock = MagicMock()
+        self.y.register_watch_handler("chan.notify", lambda: True, done_callback=done_callback_mock)
+        done_callback_mock.assert_not_called()
+
+        self.y._recv_message_raw(b"%%<watch:chan.notify:true")
+        done_callback_mock.assert_called_with(True)
 
     @patch.object(YateBase, "_send_message_raw")
     def test_uninstall_watch_handler(self, mock_method):

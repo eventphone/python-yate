@@ -9,7 +9,7 @@ logger = logging.getLogger("yate")
 
 
 class MessageHandler:
-    def __init__(self, msg, prio, callback, filter_attribute, filter_value):
+    def __init__(self, msg, prio, callback, filter_attribute, filter_value, done_callback=None):
         self.message = msg
         self.priority = prio
         self.callback = callback
@@ -17,6 +17,7 @@ class MessageHandler:
         self.filter_value = filter_value
         self.installed = False
         self.uninstalled = False
+        self.done_callback = done_callback
 
 
 class MessageRequest:
@@ -28,11 +29,12 @@ class MessageRequest:
 
 
 class WatchHandler:
-    def __init__(self, msg, callback):
+    def __init__(self, msg, callback, done_callback=None):
         self.message = msg
         self.callback = callback
         self.installed = False
         self.uninstalled = False
+        self.done_callback = done_callback
 
 
 def session_id_generator():
@@ -52,8 +54,8 @@ class YateBase:
         self._send_message_raw(msg.encode())
 
     def register_message_handler(self, message, callback, priority=100, filter_attribute=None, filter_value=None,
-                                 install=True):
-        handler = MessageHandler(message, priority, callback, filter_attribute, filter_value)
+                                 install=True, done_callback=None):
+        handler = MessageHandler(message, priority, callback, filter_attribute, filter_value, done_callback)
         self._message_handlers[message] = handler
         if install:
             install_msg = InstallToYate(priority, message, filter_attribute, filter_value)
@@ -71,8 +73,8 @@ class YateBase:
             # if it was never installed - well just remove it from the registry
             del self._message_handlers[message]
 
-    def register_watch_handler(self, message, callback):
-        handler = WatchHandler(message, callback)
+    def register_watch_handler(self, message, callback, done_callback=None):
+        handler = WatchHandler(message, callback, done_callback)
         self._watch_handlers[message] = handler
         watch_msg = WatchToYate(message)
         self._send_message_raw(watch_msg.encode())
@@ -110,7 +112,10 @@ class YateBase:
         if handler is None:
             logger.warning("Yate notified us that a handler for {} is installed though we didn't request it".format(msg.name))
             return
-        handler.installed = True
+        if msg.success:
+            handler.installed = True
+        if handler.done_callback is not None:
+            handler.done_callback(msg.success)
 
     def _handle_yate_uninstall(self, msg):
         handler = self._message_handlers.get(msg.name)
@@ -124,7 +129,10 @@ class YateBase:
         if handler is None:
             logger.warning("Yate notified us that{} is watched though we didn't request it".format(msg.name))
             return
-        handler.installed = True
+        if msg.success:
+            handler.installed = True
+        if handler.done_callback is not None:
+            handler.done_callback(msg.success)
 
     def _handle_yate_unwatch(self, msg):
         handler = self._watch_handlers.get(msg.name)
