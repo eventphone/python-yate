@@ -146,8 +146,13 @@ class YateBase:
             handler = self._message_handlers.get(msg.name)
             if handler is None:
                 logger.warning("Yate sent us a message we did not subscribe for: {}".format(msg.name))
+                # in order to keep normal event processing, just ack and explain we did not process it
+                self.answer_message(msg, False)
                 return
-            handler.callback(msg)
+            result = handler.callback(msg)
+            # handlers can return true or false if they want us to automatically answer the message
+            if result is not None:
+                self.answer_message(msg, result)
         else:
             req = self._requested_messages.get(msg.id)
             if req is None:

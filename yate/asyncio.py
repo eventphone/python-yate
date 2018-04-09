@@ -12,8 +12,11 @@ class YateAsync(yate.YateBase):
     def __init__(self, host=None, port=None):
         super().__init__()
         self.event_loop = asyncio.SelectorEventLoop()
+        asyncio.set_event_loop(self.event_loop)
         self.reader = None
         self.writer = None
+        self.main_task = None
+
         if host is not None:
             self.mode = self.MODE_TCP
             self.host = host
@@ -22,7 +25,8 @@ class YateAsync(yate.YateBase):
             self.mode = self.MODE_STDIO
 
     def run(self, application_main):
-        self.event_loop.run_until_complete(self._amain(application_main))
+        self.main_task = self.event_loop.create_task(self._amain(application_main))
+        self.event_loop.run_until_complete(self.main_task)
 
     async def _amain(self, application_main):
         if self.mode == self.MODE_STDIO:
@@ -35,9 +39,13 @@ class YateAsync(yate.YateBase):
         # now start event processing for yate messages
         message_loop_task = self.event_loop.create_task(self.message_processing_loop())
         # then let the main program run
+        await self._amain_ready()
         await application_main(self)
         self.writer.close()
         message_loop_task.cancel()
+
+    async def _amain_ready(self):
+        pass
 
     async def setup_for_stdio(self):
         self.reader = asyncio.StreamReader()

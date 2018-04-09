@@ -139,6 +139,31 @@ class YateMessageProcessingTests(unittest.TestCase):
         self.assertTrue(answer_raw.find(b"caller=you") >= 0)
         self.assertTrue(answer_raw.find(b"target=0815") >= 0)
 
+    @patch.object(YateBase, "_send_message_raw")
+    def test_message_answer_from_return_value(self, mock_method):
+        callback_mock = MagicMock()
+        callback_mock.return_value = True
+
+        mh = yate.MessageHandler("call.execute", 80, callback_mock, None, None)
+        mh.installed = True
+        self.y._message_handlers["call.execute"] = mh
+
+        msg = MessageFromYate("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
+        self.y._handle_yate_message(msg)
+        callback_mock.assert_called_with(msg)
+
+        mock_method.assert_called()
+        answer_raw = mock_method.call_args[0][0]
+        self.assertTrue(answer_raw.startswith(b"%%<message:0xdeadc0de:true:call.execute:false:"))
+        self.assertTrue(answer_raw.find(b"caller=me") >= 0)
+        self.assertTrue(answer_raw.find(b"target=0815") >= 0)
+
+    @patch.object(YateBase, "_send_message_raw")
+    def test_answers_uninteresting_messages(self, mock_method):
+        self.y._recv_message_raw(b"%%>message:0xbeef:1415:call.hangup:ret:channel=dump/3")
+        mock_method.assert_called_with(b"%%<message:0xbeef:false:call.hangup:ret:channel=dump/3")
+
+
 
 class YateWatchProcessingTests(unittest.TestCase):
     def setUp(self):
