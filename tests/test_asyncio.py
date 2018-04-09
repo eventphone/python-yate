@@ -1,8 +1,10 @@
+import asyncio
 import subprocess
 from subprocess import PIPE
 import unittest
 
-from yate.protocol import parse_yate_message
+from yate.asyncio import YateAsync
+from yate.protocol import parse_yate_message, MessageFromYate, MessageToYate
 
 class TestAsyncYateProgram(unittest.TestCase):
     def test_async_yate_program(self):
@@ -28,3 +30,27 @@ class TestAsyncYateProgram(unittest.TestCase):
         p.stdout.close()
         p.stderr.close()
 
+
+class TestAsyncMessageHandling(unittest.TestCase):
+    def test_async_message_processing(self):
+        y = YateAsync()
+        self.complete = False
+
+        def answer_message(msg_bytes):
+            msg = parse_yate_message(msg_bytes)
+            if isinstance(msg, MessageFromYate):
+                msg.return_value = "gotIt"
+                answer = msg.encode_answer_for_yate(True)
+                y.event_loop.call_soon(y._recv_message_raw, answer)
+
+        y._send_message_raw = answer_message
+
+        async def async_testroutine():
+            msg = MessageToYate("chan.test", "blubb", {})
+            result = await y.send_message_async(msg)
+            self.assertEqual("gotIt", result.return_value)
+            self.complete = True
+
+        y.event_loop.run_until_complete(asyncio.ensure_future(async_testroutine(), loop=y.event_loop))
+        y.event_loop.close()
+        self.assertTrue(self.complete, "Async operation did not finish")
