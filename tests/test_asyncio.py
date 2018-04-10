@@ -4,7 +4,7 @@ from subprocess import PIPE
 import unittest
 
 from yate.asyncio import YateAsync
-from yate.protocol import parse_yate_message, MessageFromYate, MessageToYate
+from yate.protocol import parse_yate_message, Message, MessageRequest
 
 class TestAsyncYateProgram(unittest.TestCase):
     def test_async_yate_program(self):
@@ -38,7 +38,7 @@ class TestAsyncMessageHandling(unittest.TestCase):
 
         def answer_message(msg_bytes):
             msg = parse_yate_message(msg_bytes)
-            if isinstance(msg, MessageFromYate):
+            if isinstance(msg, Message):
                 msg.return_value = "gotIt"
                 answer = msg.encode_answer_for_yate(True)
                 y.event_loop.call_soon(y._recv_message_raw, answer)
@@ -46,7 +46,7 @@ class TestAsyncMessageHandling(unittest.TestCase):
         y._send_message_raw = answer_message
 
         async def async_testroutine():
-            msg = MessageToYate("chan.test", "blubb", {})
+            msg = MessageRequest("chan.test", "blubb", {})
             result = await y.send_message_async(msg)
             self.assertEqual("gotIt", result.return_value)
             self.complete = True

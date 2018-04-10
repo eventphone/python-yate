@@ -94,12 +94,12 @@ class MessageSerializationTestCases(unittest.TestCase):
         self.assertEqual(b"%%<message:id123:true:call.execute:new_return:test=false", encodedMsg)
 
     def test_encode_new_yate_message(self):
-        msg = protocol.MessageToYate("call.execute", "", {"caller": "nick"})
+        msg = protocol.MessageRequest("call.execute", "", {"caller": "nick"})
         result = msg.encode("id-4908", 4711)
         self.assertEqual(b"%%>message:id-4908:4711:call.execute::caller=nick", result)
 
     def test_encode_new_yate_message_no_params(self):
-        msg = protocol.MessageToYate("call.execute", "", {})
+        msg = protocol.MessageRequest("call.execute", "", {})
         result = msg.encode("id-4908", 4712)
         self.assertEqual(b"%%>message:id-4908:4712:call.execute:", result)
 

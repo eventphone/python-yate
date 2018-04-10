@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from yate import yate
-from yate.protocol import MessageFromYate, MessageToYate
+from yate.protocol import Message, MessageRequest
 from yate.yate import YateBase
 
 
@@ -71,7 +71,7 @@ class YateBaseMessageHandlerSetupTests(unittest.TestCase):
         mh.installed = True
         y._message_handlers["call.execute"] = mh
 
-        msg = MessageFromYate("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
+        msg = Message("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
         self.assertEqual("message", msg.msg_type)
         self.assertFalse(msg.reply)
 
@@ -79,7 +79,7 @@ class YateBaseMessageHandlerSetupTests(unittest.TestCase):
         callback_mock.assert_called_with(msg)
 
         callback_mock.reset_mock()
-        msg2 = MessageFromYate("0xdeadbeef", 4712, "chan.attach", "false", {})
+        msg2 = Message("0xdeadbeef", 4712, "chan.attach", "false", {})
         y._handle_yate_message(msg2)
         callback_mock.assert_not_called()
 
@@ -91,7 +91,7 @@ class YateMessageProcessingTests(unittest.TestCase):
 
     @patch.object(YateBase, "_send_message_raw")
     def test_message_encoding(self, moc_method):
-        msg = MessageToYate("chan.attach", "res", {"target": "sip/5"})
+        msg = MessageRequest("chan.attach", "res", {"target": "sip/5"})
 
         self.y._get_timestamp.return_value = 1234
         self.y.send_message(msg, fire_and_forget=True)
@@ -109,12 +109,12 @@ class YateMessageProcessingTests(unittest.TestCase):
         callback_mock = MagicMock()
         self.y._get_timestamp.return_value = 42
 
-        msg = MessageToYate("chan.attach", "resultVal", {"target": "sip/2"})
+        msg = MessageRequest("chan.attach", "resultVal", {"target": "sip/2"})
         self.y.send_message(msg, callback_mock)
         self.assertIn(self.y._session_id + ".1", self.y._requested_messages)
 
-        msg_reply = MessageFromYate(self.y._session_id + ".1", 42, "chan.attach", "result",
-                                    {"target": "sip/2", "notify": "true"}, reply=True)
+        msg_reply = Message(self.y._session_id + ".1", 42, "chan.attach", "result",
+                            {"target": "sip/2", "notify": "true"}, reply=True)
         self.y._handle_yate_message(msg_reply)
 
         self.assertNotIn(self.y._session_id + ".1", self.y._requested_messages)
@@ -127,7 +127,7 @@ class YateMessageProcessingTests(unittest.TestCase):
         mh.installed = True
         self.y._message_handlers["call.execute"] = mh
 
-        msg = MessageFromYate("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
+        msg = Message("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
         self.y._handle_yate_message(msg)
         callback_mock.assert_called_with(msg)
 
@@ -148,7 +148,7 @@ class YateMessageProcessingTests(unittest.TestCase):
         mh.installed = True
         self.y._message_handlers["call.execute"] = mh
 
-        msg = MessageFromYate("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
+        msg = Message("0xdeadc0de", 4711, "call.execute", "false", {"caller": "me", "target": "0815"})
         self.y._handle_yate_message(msg)
         callback_mock.assert_called_with(msg)
 
@@ -209,7 +209,7 @@ class YateWatchProcessingTests(unittest.TestCase):
         handler.installed = True
         self.y._watch_handlers["chan.notify"] = handler
 
-        msg = MessageFromYate("0xDEAD.1", None, "chan.notify", "val", {"target": "wave/2"}, True, True)
+        msg = Message("0xDEAD.1", None, "chan.notify", "val", {"target": "wave/2"}, True, True)
         self.y._handle_yate_message(msg)
 
         callback_mock.assert_called_with(msg)
@@ -220,7 +220,7 @@ class YateWatchProcessingTests(unittest.TestCase):
         handler.installed = True
         self.y._watch_handlers[""] = handler
 
-        msg = MessageFromYate("0xDEAD.1", None, "chan.dtmf", "val", {"target": "wave/2"}, True, True)
+        msg = Message("0xDEAD.1", None, "chan.dtmf", "val", {"target": "wave/2"}, True, True)
         self.y._handle_yate_message(msg)
 
         callback_mock.assert_called_with(msg)

@@ -68,7 +68,7 @@ def parse_yate_message(bytes_input):
     return message_class.parse(split_msg)
 
 
-class MessageFromYate:
+class Message:
     @classmethod
     def parse(cls, data):
         if len(data) < 5:
@@ -109,7 +109,7 @@ class MessageFromYate:
                                 *["=".join(item) for item in self.params.items()])
 
 
-class MessageToYate:
+class MessageRequest:
     def __init__(self, name, return_value, params):
         self.name = name
         self.return_value = return_value
@@ -240,8 +240,8 @@ class ConnectToYate:
 
 
 _yate_message_type_table = {
-    "%>message" : MessageFromYate,
-    "%<message" : MessageFromYate,
+    "%>message" : Message,
+    "%<message" : Message,
     "%<install" : InstallFromYate,
     "%<uninstall" : UninstallFromYate,
     "%<watch" : WatchFromYate,
