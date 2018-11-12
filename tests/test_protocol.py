@@ -72,12 +72,12 @@ class MessageDeserializationTestCases(unittest.TestCase):
 
 class MessageSerializationTestCases(unittest.TestCase):
     def test_encode_yate_install_mgs(self):
-        message = protocol.InstallToYate(1, "call.execute")
+        message = protocol.InstallRequest(1, "call.execute")
         result = message.encode()
         self.assertEqual(b'%%>install:1:call.execute', result)
 
     def test_encode_yate_install_mgs_filter(self):
-        message = protocol.InstallToYate(1, "call.execute", "test1", "test2")
+        message = protocol.InstallRequest(1, "call.execute", "test1", "test2")
         result = message.encode()
         self.assertEqual(b'%%>install:1:call.execute:test1:test2', result)
 
@@ -104,27 +104,27 @@ class MessageSerializationTestCases(unittest.TestCase):
         self.assertEqual(b"%%>message:id-4908:4712:call.execute:", result)
 
     def test_encode_install_message(self):
-        msg = protocol.InstallToYate("100", "call.hangup")
+        msg = protocol.InstallRequest("100", "call.hangup")
         result = msg.encode()
         self.assertEqual(b"%%>install:100:call.hangup", result)
 
     def test_encode_install_message_with_filter(self):
-        msg = protocol.InstallToYate("100", "chan.hangup", "caller", "nick")
+        msg = protocol.InstallRequest("100", "chan.hangup", "caller", "nick")
         result = msg.encode()
         self.assertEqual(b"%%>install:100:chan.hangup:caller:nick", result)
 
     def test_encode_uninstall_message(self):
-        msg = protocol.UninstallToYate("chan.hangup")
+        msg = protocol.UninstallRequest("chan.hangup")
         result = msg.encode()
         self.assertEqual(b"%%>uninstall:chan.hangup", result)
 
     def test_encode_watch_message(self):
-        msg = protocol.WatchToYate("chan.dtmf")
+        msg = protocol.WatchRequest("chan.dtmf")
         result = msg.encode()
         self.assertEqual(b"%%>watch:chan.dtmf", result)
 
     def test_encode_unwatch_message(self):
-        msg = protocol.UnwatchToYate("chan.dtmf")
+        msg = protocol.UnwatchRequest("chan.dtmf")
         result = msg.encode()
         self.assertEqual(b"%%>unwatch:chan.dtmf", result)
 

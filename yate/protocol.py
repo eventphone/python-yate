@@ -124,7 +124,7 @@ class MessageRequest:
                                 *["=".join(item) for item in self.params.items()])
 
 
-class InstallToYate:
+class InstallRequest:
     def __init__(self, prioriy, name, filtername=None, filtervalue=None):
         self._priority = str(prioriy)
         self._name = name
@@ -154,7 +154,7 @@ class InstallUninstallBase:
         return cls(priority, name, success)
 
 
-class InstallFromYate(InstallUninstallBase):
+class InstallConfirm(InstallUninstallBase):
     def __init__(self, priority, name, success):
         self.msg_type = "install"
         self.priority = priority
@@ -162,7 +162,7 @@ class InstallFromYate(InstallUninstallBase):
         self.success = success
 
 
-class UninstallToYate:
+class UninstallRequest:
     def __init__(self, name):
         self.name = name
 
@@ -170,7 +170,7 @@ class UninstallToYate:
         return yate_encode_join("%>uninstall", self.name)
 
 
-class UninstallFromYate(InstallUninstallBase):
+class UninstallConfirm(InstallUninstallBase):
     def __init__(self, priority, name, success):
         self.msg_type = "uninstall"
         self.priority = priority
@@ -178,7 +178,7 @@ class UninstallFromYate(InstallUninstallBase):
         self.success = success
 
 
-class WatchToYate:
+class WatchRequest:
     def __init__(self, name):
         self.name = name
 
@@ -186,7 +186,7 @@ class WatchToYate:
         return yate_encode_join("%>watch", self.name)
 
 
-class WatchFromYate:
+class WatchConfirm:
     @classmethod
     def parse(cls, data):
         if len(data) < 3:
@@ -201,7 +201,7 @@ class WatchFromYate:
         self.success = success
 
 
-class UnwatchToYate:
+class UnwatchRequest:
     def __init__(self, name):
         self.name = name
 
@@ -209,7 +209,7 @@ class UnwatchToYate:
         return yate_encode_join("%>unwatch", self.name)
 
 
-class UnwatchFromYate:
+class UnwatchConfirm:
     @classmethod
     def parse(cls, data):
         if len(data) < 3:
@@ -242,8 +242,8 @@ class ConnectToYate:
 _yate_message_type_table = {
     "%>message" : Message,
     "%<message" : Message,
-    "%<install" : InstallFromYate,
-    "%<uninstall" : UninstallFromYate,
-    "%<watch" : WatchFromYate,
-    "%<unwatch" : UnwatchFromYate,
+    "%<install" : InstallConfirm,
+    "%<uninstall" : UninstallConfirm,
+    "%<watch" : WatchConfirm,
+    "%<unwatch" : UnwatchConfirm,
 }

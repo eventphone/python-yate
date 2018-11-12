@@ -3,7 +3,7 @@ import random
 import string
 import time
 
-from yate.protocol import parse_yate_message, InstallToYate, UninstallToYate, WatchToYate, UnwatchToYate, ConnectToYate
+from yate.protocol import parse_yate_message, InstallRequest, UninstallRequest, WatchRequest, UnwatchRequest, ConnectToYate
 
 logger = logging.getLogger("yate")
 
@@ -58,7 +58,7 @@ class YateBase:
         handler = MessageHandler(message, priority, callback, filter_attribute, filter_value, done_callback)
         self._message_handlers[message] = handler
         if install:
-            install_msg = InstallToYate(priority, message, filter_attribute, filter_value)
+            install_msg = InstallRequest(priority, message, filter_attribute, filter_value)
             self._send_message_raw(install_msg.encode())
 
     def unregister_message_handler(self, message):
@@ -66,7 +66,7 @@ class YateBase:
             return
         handler = self._message_handlers[message]
         if handler.installed:
-            uninstall_msg = UninstallToYate(message)
+            uninstall_msg = UninstallRequest(message)
             self._send_message_raw(uninstall_msg.encode())
             handler.uninstalled = True
         else:
@@ -76,7 +76,7 @@ class YateBase:
     def register_watch_handler(self, message, callback, done_callback=None):
         handler = WatchHandler(message, callback, done_callback)
         self._watch_handlers[message] = handler
-        watch_msg = WatchToYate(message)
+        watch_msg = WatchRequest(message)
         self._send_message_raw(watch_msg.encode())
 
     def unregister_watch_handler(self, message):
@@ -84,7 +84,7 @@ class YateBase:
             return
         handler = self._watch_handlers[message]
         if handler.installed:
-            unwatch_msg = UnwatchToYate(message)
+            unwatch_msg = UnwatchRequest(message)
             self._send_message_raw(unwatch_msg.encode())
             handler.uninstalled = True
         else:
