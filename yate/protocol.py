@@ -126,18 +126,28 @@ class MessageRequest:
 
 class InstallRequest:
     def __init__(self, prioriy, name, filtername=None, filtervalue=None):
-        self._priority = str(prioriy)
-        self._name = name
-        self._filtername = filtername
-        self._filtervalue = str(filtervalue)
+        self.priority = prioriy
+        self.name = name
+        self.filter_name = filtername
+        self.filter_value = str(filtervalue)
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) < 3:
+            raise YateMessageParsingError("Invalid install request with only {} parameters".format(len(data)))
+        priority = int(data[1])
+        name = data[2]
+        filter_name = data[3] if len(data) >= 4 else None
+        filter_value = data[4] if len(data) >= 5 else None
+        return cls(priority, name, filter_name, filter_value)
 
     def encode(self):
         extraargs = []
-        if self._filtername is not None:
-            extraargs.append(self._filtername)
-            if self._filtervalue is not None:
-                extraargs.append(self._filtervalue)
-        return yate_encode_join("%>install", self._priority, self._name, *extraargs)
+        if self.filter_name is not None:
+            extraargs.append(self.filter_name)
+            if self.filter_value is not None:
+                extraargs.append(self.filter_value)
+        return yate_encode_join("%>install", str(self.priority), self.name, *extraargs)
 
 
 class InstallUninstallBase:
@@ -161,10 +171,19 @@ class InstallConfirm(InstallUninstallBase):
         self.name = name
         self.success = success
 
+    def encode(self):
+        return yate_encode_join("%<install", str(self.priority), self.name, str(self.success).lower())
+
 
 class UninstallRequest:
     def __init__(self, name):
         self.name = name
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 2:
+            raise YateMessageParsingError("Invalid uninstall request with {} parameters".format(len(data)))
+        return cls(data[1])
 
     def encode(self):
         return yate_encode_join("%>uninstall", self.name)
@@ -177,10 +196,19 @@ class UninstallConfirm(InstallUninstallBase):
         self.name = name
         self.success = success
 
+    def encode(self):
+        return yate_encode_join("%<uninstall", str(self.priority), self.name, str(self.success).lower())
+
 
 class WatchRequest:
     def __init__(self, name):
         self.name = name
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 2:
+            raise YateMessageParsingError("Invalid watch request with {} parameters".format(len(data)))
+        return cls(data[1])
 
     def encode(self):
         return yate_encode_join("%>watch", self.name)
@@ -200,10 +228,19 @@ class WatchConfirm:
         self.name = name
         self.success = success
 
+    def encode(self):
+        return yate_encode_join("%<watch", self.name, str(self.success).lower())
+
 
 class UnwatchRequest:
     def __init__(self, name):
         self.name = name
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 2:
+            raise YateMessageParsingError("Invalid unwatch request with {} parameters".format(len(data)))
+        return cls(data[1])
 
     def encode(self):
         return yate_encode_join("%>unwatch", self.name)
@@ -223,6 +260,9 @@ class UnwatchConfirm:
         self.name = name
         self.success = success
 
+    def encode(self):
+        return yate_encode_join("%<unwatch", self.name, str(self.success).lower())
+
 
 class ConnectToYate:
     def __init__(self, role="global", id=None, type=None):
@@ -240,10 +280,14 @@ class ConnectToYate:
 
 
 _yate_message_type_table = {
-    "%>message" : Message,
-    "%<message" : Message,
-    "%<install" : InstallConfirm,
-    "%<uninstall" : UninstallConfirm,
-    "%<watch" : WatchConfirm,
-    "%<unwatch" : UnwatchConfirm,
+    "%>message": Message,
+    "%<message": Message,
+    "%>install": InstallRequest,
+    "%<install": InstallConfirm,
+    "%>uninstall": UninstallRequest,
+    "%<uninstall": UninstallConfirm,
+    "%>watch": WatchRequest,
+    "%<watch": WatchConfirm,
+    "%>unwatch": UnwatchRequest,
+    "%<unwatch": UnwatchConfirm,
 }

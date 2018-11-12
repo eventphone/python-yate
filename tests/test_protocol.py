@@ -50,6 +50,22 @@ class MessageDeserializationTestCases(unittest.TestCase):
         self.assertEqual("test", result.name)
         self.assertEqual(True, result.success)
 
+    def test_parse_install_request_no_filter(self):
+        result = protocol.parse_yate_message(b"%%>install:70:chan.test")
+        self.assertEqual(result.priority, 70)
+        self.assertEqual(result.name, "chan.test")
+
+    def test_parse_install_request(self):
+        result = protocol.parse_yate_message(b"%%>install:70:chan.test:important:true")
+        self.assertEqual(result.priority, 70)
+        self.assertEqual(result.name, "chan.test")
+        self.assertEqual(result.filter_name, "important")
+        self.assertEqual(result.filter_value, "true")
+
+    def test_parse_uninstall_request(self):
+        result = protocol.parse_yate_message(b"%%>uninstall:test")
+        self.assertEqual(result.name, "test")
+
     def test_parse_uninstall_message(self):
         result = protocol.parse_yate_message(b"%%<uninstall:50:test:true")
         self.assertEqual("uninstall", result.msg_type)
@@ -57,11 +73,19 @@ class MessageDeserializationTestCases(unittest.TestCase):
         self.assertEqual("test", result.name)
         self.assertEqual(True, result.success)
 
+    def test_parse_watch_request(self):
+        result = protocol.parse_yate_message(b"%%>watch:test")
+        self.assertEqual(result.name, "test")
+
     def test_parse_watch_message(self):
         result = protocol.parse_yate_message(b"%%<watch:call.execute:false")
         self.assertEqual("watch", result.msg_type)
         self.assertEqual("call.execute", result.name)
         self.assertEqual(False, result.success)
+
+    def test_parse_unwatch_request(self):
+        result = protocol.parse_yate_message(b"%%>unwatch:test")
+        self.assertEqual(result.name, "test")
 
     def test_parse_unwatch_message(self):
         result = protocol.parse_yate_message(b"%%<unwatch:call.execute:true")
@@ -113,20 +137,40 @@ class MessageSerializationTestCases(unittest.TestCase):
         result = msg.encode()
         self.assertEqual(b"%%>install:100:chan.hangup:caller:nick", result)
 
+    def test_encode_install_confirm(self):
+        msg = protocol.InstallConfirm(80, "chan.test", True)
+        result = msg.encode()
+        self.assertEqual(b"%%<install:80:chan.test:true", result)
+
     def test_encode_uninstall_message(self):
         msg = protocol.UninstallRequest("chan.hangup")
         result = msg.encode()
         self.assertEqual(b"%%>uninstall:chan.hangup", result)
+
+    def test_encode_uninstall_confirm(self):
+        msg = protocol.UninstallConfirm(80, "chan.test", True)
+        result = msg.encode()
+        self.assertEqual(b"%%<uninstall:80:chan.test:true", result)
 
     def test_encode_watch_message(self):
         msg = protocol.WatchRequest("chan.dtmf")
         result = msg.encode()
         self.assertEqual(b"%%>watch:chan.dtmf", result)
 
+    def test_encode_watch_confirm(self):
+        msg = protocol.WatchConfirm("chan.dtmf", True)
+        result = msg.encode()
+        self.assertEqual(b"%%<watch:chan.dtmf:true", result)
+
     def test_encode_unwatch_message(self):
         msg = protocol.UnwatchRequest("chan.dtmf")
         result = msg.encode()
         self.assertEqual(b"%%>unwatch:chan.dtmf", result)
+
+    def test_encode_unwatch_confirm(self):
+        msg = protocol.UnwatchConfirm("chan.dtmf", True)
+        result = msg.encode()
+        self.assertEqual(b"%%<unwatch:chan.dtmf:true", result)
 
     def test_encode_connect_message(self):
         msg = protocol.ConnectToYate()
