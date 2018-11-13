@@ -27,6 +27,7 @@ class YateAsync(yate.YateBase):
     def run(self, application_main):
         self.main_task = self.event_loop.create_task(self._amain(application_main))
         self.event_loop.run_until_complete(self.main_task)
+        self.event_loop.close()
 
     async def _amain(self, application_main):
         if self.mode == self.MODE_STDIO:
@@ -59,14 +60,18 @@ class YateAsync(yate.YateBase):
         self.reader, self.writer = await asyncio.open_connection(host, port, loop=self.event_loop)
 
     async def message_processing_loop(self):
-        while True:
-            raw_message = await self.reader.readline()
-            if raw_message == b"":
-                break  # we only receive empty bytes if this is EOF, then terminate
-            raw_message = raw_message.strip()
-            self._recv_message_raw(raw_message)
-        # once message processing ends, the whole application should terminate
+        try:
+            while True:
+                raw_message = await self.reader.readline()
+                if raw_message == b"":
+                    break  # we only receive empty bytes if this is EOF, then terminate
+                raw_message = raw_message.strip()
+                self._recv_message_raw(raw_message)
+            # once message processing ends, the whole application should terminate
+        except asyncio.CancelledError:
+            pass
         self.event_loop.stop()
+
 
     def _send_message_raw(self, msg):
         self.writer.write(msg + b"\n")
