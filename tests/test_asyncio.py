@@ -1,6 +1,7 @@
-import asyncio
-import subprocess
 from subprocess import PIPE
+import asyncio
+import os
+import subprocess
 import unittest
 
 from yate.asyncio import YateAsync
@@ -8,7 +9,9 @@ from yate.protocol import parse_yate_message, Message, MessageRequest
 
 class TestAsyncYateProgram(unittest.TestCase):
     def test_async_yate_program(self):
-        p = subprocess.Popen(["python", "./tests/asyncio_min.py"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        this_dir = os.path.dirname(__file__)
+        test_script = os.path.join(this_dir, "asyncio_min.py")
+        p = subprocess.Popen(["python", test_script], stdin=PIPE, stdout=PIPE, stderr=PIPE)
         install_message = p.stdout.readline().strip()
         self.assertEqual(b"%%>install:100:chan.notify", install_message)
         p.stdin.write(b"%%<install:100:chan.notify:true\n")

@@ -1,4 +1,6 @@
 .DS_Store
 .idea
 .vs
+.tox
+python_yate.egg-info
 __pycache__

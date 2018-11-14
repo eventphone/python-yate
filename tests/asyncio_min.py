@@ -14,6 +14,7 @@ async def main(yate: YateAsync):
 
     await yate.register_message_handler_async("chan.notify", notifyCallback)
     sys.stderr.write("Notify handler installed!\n")
+    sys.stderr.flush()
     # now we wait for one message to be processed
     await future
 
