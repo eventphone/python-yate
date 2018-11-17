@@ -49,7 +49,7 @@ class TestAsyncMessageHandling(unittest.TestCase):
         y._send_message_raw = answer_message
 
         async def async_testroutine():
-            msg = MessageRequest("chan.test", "blubb", {})
+            msg = MessageRequest("chan.test", {}, "blubb")
             result = await y.send_message_async(msg)
             self.assertEqual("gotIt", result.return_value)
             self.complete = True

@@ -91,7 +91,7 @@ class YateMessageProcessingTests(unittest.TestCase):
 
     @patch.object(YateBase, "_send_message_raw")
     def test_message_encoding(self, moc_method):
-        msg = MessageRequest("chan.attach", "res", {"target": "sip/5"})
+        msg = MessageRequest("chan.attach", {"target": "sip/5"}, "res")
 
         self.y._get_timestamp.return_value = 1234
         self.y.send_message(msg, fire_and_forget=True)
@@ -109,7 +109,7 @@ class YateMessageProcessingTests(unittest.TestCase):
         callback_mock = MagicMock()
         self.y._get_timestamp.return_value = 42
 
-        msg = MessageRequest("chan.attach", "resultVal", {"target": "sip/2"})
+        msg = MessageRequest("chan.attach", {"target": "sip/2"}, "resultVal")
         self.y.send_message(msg, callback_mock)
         self.assertIn(self.y._session_id + ".1", self.y._requested_messages)
 
@@ -133,7 +133,7 @@ class YateMessageProcessingTests(unittest.TestCase):
 
         msg.params["caller"] = "you"
         self.y.answer_message(msg, True)
-        mock_method.assert_called()
+        self.assertGreaterEqual(len(mock_method.mock_calls), 1)
         answer_raw = mock_method.call_args[0][0]
         self.assertTrue(answer_raw.startswith(b"%%<message:0xdeadc0de:true:call.execute:false:"))
         self.assertTrue(answer_raw.find(b"caller=you") >= 0)
@@ -152,7 +152,7 @@ class YateMessageProcessingTests(unittest.TestCase):
         self.y._handle_yate_message(msg)
         callback_mock.assert_called_with(msg)
 
-        mock_method.assert_called()
+        self.assertGreaterEqual(len(mock_method.mock_calls), 1)
         answer_raw = mock_method.call_args[0][0]
         self.assertTrue(answer_raw.startswith(b"%%<message:0xdeadc0de:true:call.execute:false:"))
         self.assertTrue(answer_raw.find(b"caller=me") >= 0)

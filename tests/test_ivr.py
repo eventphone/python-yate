@@ -1,6 +1,7 @@
+import asyncio
 import unittest
 
-from yate import ivr
+from yate import ivr, protocol
 from tests.yatesim import YateSim, YateSimAsyncMixin
 
 
@@ -14,7 +15,7 @@ class YateIVRBaseTests(unittest.TestCase):
         self.ivr = YateIVRInTheLoop(self.ys)
 
     async def ivr_call_setup_test(self, ivr):
-        self.assertEqual(ivr.chan_id, "sip/4")
+        self.assertEqual(ivr.call_id, "sip/4")
 
     def test_ivr_call_setup(self):
         self.ys.generate_call_execute("sip/4")
@@ -40,3 +41,99 @@ class YateIVRBaseTests(unittest.TestCase):
     def test_ivr_message_handler_setup(self):
         self.ys.generate_call_execute("sip/1")
         self.ivr.run(self.ivr_message_handler_setup_test)
+
+    async def simulate_hangup(self, ivr):
+        def hangupHandler():
+            self.hangup = True
+        ivr.register_hangup_handler(hangupHandler)
+        hangupMsg = protocol.MessageRequest("chan.hangup", {"id": "sip/1"})
+        self.ys.enqueue_yate_message_request(hangupMsg)
+        await asyncio.sleep(10)
+
+    def test_hangup_handler(self):
+        self.hangup = False
+        self.ys.generate_call_execute("sip/1")
+        self.assertFalse(self.hangup)
+        self.ivr.run(self.simulate_hangup)
+        self.assertTrue(self.hangup)
+
+    def test_play_soundfile(self):
+        async def play_sndfile_main(ivr):
+            await ivr.play_soundfile("/var/opt/test.slin", repeat=True)
+
+        self.ys.generate_call_execute("sip/1")
+        self.ivr.run(play_sndfile_main)
+        attach_msg = self.ys.received_message_requests[0]
+        self.assertEqual("chan.attach", attach_msg.name)
+        self.assertDictEqual(attach_msg.params,
+                             {"source": "wave/play//var/opt/test.slin",
+                              "notify": "sip/1",
+                              "autorepeat": "true"})
+
+    async def play_sndfile_wait_main(self, ivr):
+        notify_msg = protocol.MessageRequest("chan.notify", {"id": "sip/1", "reason": "eof"})
+        self.ys.enqueue_yate_message_request(notify_msg)
+        await ivr.play_soundfile("/var/opt/test.slin", complete=True)
+        self.sound_finished = True
+
+    def test_play_soundfile_wait(self):
+        def attachHandler(msg):
+            msg.return_value = "true"
+
+        self.sound_finished = False
+        self.ys.set_message_handler("chan.attach", attachHandler)
+        self.ys.generate_call_execute("sip/1")
+
+        self.ivr.run(self.play_sndfile_wait_main)
+        self.assertTrue(self.sound_finished)
+
+    async def dtmf_read_until_test_main(self, ivr):
+        self.ys.send_dtmf("sip/1", "4")
+        self.ys.send_dtmf("sip/1", "7")
+        self.ys.send_dtmf("sip/1", "1")
+        self.ys.send_dtmf("sip/1", "1")
+        self.ys.send_dtmf("sip/1", "#")
+
+        dtmf_input = await ivr.read_dtmf_until("#")
+        self.assertEqual("4711#", dtmf_input)
+        self.finished = True
+
+    def test_dtmf_read_until(self):
+        self.finished = False
+        self.ys.generate_call_execute("sip/1")
+
+        self.ivr.run(self.dtmf_read_until_test_main)
+        self.assertTrue(self.finished)
+
+    async def dtmf_read_symbols_test_main(self, ivr):
+        self.ys.send_dtmf("sip/1", "4")
+        self.ys.send_dtmf("sip/1", "7")
+        self.ys.send_dtmf("sip/1", "1")
+        self.ys.send_dtmf("sip/1", "2")
+        self.ys.send_dtmf("sip/1", "*")
+
+        dtmf_input = await ivr.read_dtmf_symbols(3)
+        self.assertEqual("471", dtmf_input)
+        self.finished = True
+
+    def test_dtmf_read_symbols(self):
+        self.finished = False
+        self.ys.generate_call_execute("sip/1")
+
+        self.ivr.run(self.dtmf_read_symbols_test_main)
+        self.assertTrue(self.finished)
+        self.assertEqual("2*", self.ivr.dtmf_buffer)
+
+    async def wait_channel_event_test_main(self, i):
+        self.ys.send_dtmf("sip/1", "4")
+
+        event = await i.wait_channel_event()
+        self.assertEqual(event, ivr.ChannelEventType.DTMF)
+        self.finished = True
+
+    def test_dtmf_read_symbols(self):
+        self.finished = False
+        self.ys.generate_call_execute("sip/1")
+
+        self.ivr.run(self.wait_channel_event_test_main)
+        self.assertTrue(self.finished)

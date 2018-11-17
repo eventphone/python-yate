@@ -8,5 +8,8 @@ setup(
     license='MIT',
     author='Martin Lang',
     author_email='Martin.Lang@rwth-aachen.de',
-    description='An (asyncio enabled) python library for yate IVRs and extmodules'
+    description='An (asyncio enabled) python library for yate IVRs and extmodules',
+    install_requires=[
+        'async_timeout',
+    ],
 )

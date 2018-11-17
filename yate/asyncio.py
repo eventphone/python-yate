@@ -3,7 +3,7 @@ from asyncio.streams import StreamWriter, FlowControlMixin
 import sys
 
 from yate import yate
-
+from yate.protocol import MessageRequest, Message
 
 class YateAsync(yate.YateBase):
     MODE_STDIO = 1
@@ -41,7 +41,10 @@ class YateAsync(yate.YateBase):
         message_loop_task = self.event_loop.create_task(self.message_processing_loop())
         # then let the main program run
         await self._amain_ready()
-        await application_main(self)
+        try:
+            await application_main(self)
+        except asyncio.CancelledError as e:
+            pass # We clean up even when the main task is cancelled
         self.writer.close()
         message_loop_task.cancel()
 
@@ -72,7 +75,6 @@ class YateAsync(yate.YateBase):
             pass
         self.event_loop.stop()
 
-
     def _send_message_raw(self, msg):
         self.writer.write(msg + b"\n")
 
@@ -101,7 +103,7 @@ class YateAsync(yate.YateBase):
         await future
         return future.result()
 
-    async def send_message_async(self, msg):
+    async def send_message_async(self, msg: MessageRequest) -> Message:
         future = self.event_loop.create_future()
 
         def _done_callback(old_msg, result_msg):

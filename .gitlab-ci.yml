@@ -4,4 +4,4 @@ stages:
 test:
     stage: test
     script:
-        - tox3
+        - tox

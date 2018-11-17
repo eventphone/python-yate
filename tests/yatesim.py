@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 from yate import protocol
 
+
 class YateSimMessageHandler:
     def __init__(self, name, priority, filter_name, filter_value):
         self.name = name
@@ -16,6 +17,11 @@ class YateSim:
         self.installed_message_handlers = {}
         self._msg_id = 1
         self._session_id = "test"
+        self.received_message_requests = []
+        self._message_handlers = {}
+
+    def set_message_handler(self, msg_name, handler):
+        self._message_handlers[msg_name] = handler
 
     def set_out_message_queue(self, queue):
         self._mock_message_queue = queue
@@ -34,7 +40,11 @@ class YateSim:
 
     def generate_call_execute(self, channel:str, params: dict = {}):
         params["id"] = channel
-        msg = protocol.MessageRequest("call.execute", "", params)
+        msg = protocol.MessageRequest("call.execute", params)
+        self.enqueue_yate_message_request(msg)
+
+    def send_dtmf(self, channel: str, symbol: str):
+        msg = protocol.MessageRequest("chan.dtmf", {"id": channel, "text": symbol})
         self.enqueue_yate_message_request(msg)
 
     def process_message(self, msg: bytes):
@@ -58,6 +68,9 @@ class YateSim:
             self.enqueue_yate_message_raw(confirm.encode())
         elif isinstance(msg, protocol.Message):
             if not msg.reply:
+                self.received_message_requests.append(msg)
+                if msg.name in self._message_handlers:
+                    self._message_handlers[msg.name](msg)
                 self.enqueue_yate_message_raw(msg.encode_answer_for_yate(True))
 
 

@@ -110,7 +110,7 @@ class Message:
 
 
 class MessageRequest:
-    def __init__(self, name, return_value, params):
+    def __init__(self, name, params, return_value=""):
         self.name = name
         self.return_value = return_value
         self.params = params
