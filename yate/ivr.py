@@ -146,10 +146,10 @@ class YateIVR(YateAsync):
                           DTMF symbols where read until then.
         :return: DTMF symbols read.
         """
+        local_buf = ""
         try:
             with async_timeout.timeout(timeout_s):
                 self.dtmf_buffer = ""
-                local_buf = ""
                 while True:
                     await self.dtmf_event.wait()
                     self.dtmf_event.clear()
@@ -161,7 +161,7 @@ class YateIVR(YateAsync):
                     self.dtmf_buffer = ""
         except asyncio.TimeoutError:
             pass
-        return ""
+        return local_buf
 
     async def read_dtmf_symbols(self, count: int, timeout_s: float = None) -> str:
         """
@@ -186,7 +186,7 @@ class YateIVR(YateAsync):
             return result
         except asyncio.TimeoutError:
             pass
-        return ""
+        return result
 
     async def silence(self):
         """

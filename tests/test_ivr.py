@@ -137,3 +137,16 @@ class YateIVRBaseTests(unittest.TestCase):
 
         self.ivr.run(self.wait_channel_event_test_main)
         self.assertTrue(self.finished)
+
+    async def dtmf_timeout_test_main(self, ivr):
+        self.ys.send_dtmf("sip/1", "1")
+        result = await ivr.read_dtmf_until("#", timeout_s=0.01)
+        self.assertEqual("1", result)
+        self.finished = True
+
+    def test_dtmf_timeout(self):
+        self.finished = False
+        self.ys.generate_call_execute("sip/1")
+
+        self.ivr.run(self.dtmf_timeout_test_main)
+        self.assertTrue(self.finished)
