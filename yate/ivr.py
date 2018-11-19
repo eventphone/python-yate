@@ -96,8 +96,7 @@ class YateIVR(YateAsync):
             await asyncio.sleep(time_limit_s)
             return await ivr.stop_recording()
 
-        if not await self._send_record_message(path):
-            return
+        await self._send_record_message(path)
         if time_limit_s is not None:
             t = self.event_loop.create_task(_stop_function(self))
             return t
@@ -112,8 +111,7 @@ class YateIVR(YateAsync):
         :param time_limit_s: Seconds to be recorded.
         :return: True on success, false if yate reported an error.
         """
-        if not await self._send_record_message(path):
-            return False
+        await self._send_record_message(path)
         await asyncio.sleep(time_limit_s)
         return await self.stop_recording()
 
@@ -122,16 +120,15 @@ class YateIVR(YateAsync):
         Stop any running recording of the remote end
         :return: True if success, False if yate reported an error.
         """
-        return await self._send_record_message("-")
+        await self._send_record_message("-")
 
     async def _send_record_message(self, path: str) -> bool:
         msg_params = {
-            "source": "wave/record/{}".format(path),
+            "consumer": "wave/record/{}".format(path),
             "notify": self.call_id,
         }
         play_msg = MessageRequest("chan.attach", msg_params)
         res = await self.send_message_async(play_msg)
-        return res.return_value == "true"
 
     async def read_dtmf_until(self, stop_symbols: str, timeout_s: float = None) -> str:
         """
@@ -190,9 +187,17 @@ class YateIVR(YateAsync):
     async def silence(self):
         """
         Stop audio playback and just send silence on the channel
+        :return: The returned yate message
         """
-        silence_msg = MessageRequest("chan.attach", {"source": "tone/silence"})
-        return await self.send_message_async(silence_msg)
+        return await self.tone("silence")
+
+    async def tone(self, name: str):
+        """
+        Attach a certain tone as source to our channel
+        :return: The returned yate message
+        """
+        tone_msg = MessageRequest("chan.attach", {"source": "tone/" + name})
+        return await self.send_message_async(tone_msg)
 
     async def wait_channel_event(self, timeout_s: float = None) -> Optional[ChannelEventType]:
         """
