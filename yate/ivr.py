@@ -77,9 +77,7 @@ class YateIVR(YateAsync):
             msg_params["autorepeat"] = "true"
         play_msg = MessageRequest("chan.attach", msg_params)
         self.playback_end_event.clear()
-        res = await self.send_message_async(play_msg)
-        if res.return_value != "true":
-            return False
+        await self.send_message_async(play_msg)
         if complete:
             await self.playback_end_event.wait()
         return True

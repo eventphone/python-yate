@@ -77,11 +77,7 @@ class YateIVRBaseTests(unittest.TestCase):
         self.sound_finished = True
 
     def test_play_soundfile_wait(self):
-        def attachHandler(msg):
-            msg.return_value = "true"
-
         self.sound_finished = False
-        self.ys.set_message_handler("chan.attach", attachHandler)
         self.ys.generate_call_execute("sip/1")
 
         self.ivr.run(self.play_sndfile_wait_main)
