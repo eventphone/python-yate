@@ -32,10 +32,10 @@ class YateIVR(YateAsync):
         self.unregister_message_handler("call.execute")
         return True  # Acknowledge that we accepted the call
 
-
     def _chan_notify_handler(self, msg):
         if msg.params.get("reason", "") == "eof":
             self.playback_end_event.set()
+        return True
 
     def _chan_dtmf_handler(self, msg):
         self.dtmf_buffer += msg.params["text"]
