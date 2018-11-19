@@ -171,6 +171,7 @@ class YateIVR(YateAsync):
                           DTMF symbols where read until then.
         :return: DTMF symbols read.
         """
+        result = ""
         try:
             with async_timeout.timeout(timeout_s):
                 self.dtmf_buffer = ""
