@@ -3,7 +3,7 @@ from asyncio.streams import StreamWriter, FlowControlMixin
 import sys
 
 from yate import yate
-from yate.protocol import MessageRequest, Message
+from yate.protocol import MessageRequest, Message, ConnectToYate
 
 class YateAsync(yate.YateBase):
     MODE_STDIO = 1
@@ -61,6 +61,8 @@ class YateAsync(yate.YateBase):
 
     async def setup_for_tcp(self, host, port):
         self.reader, self.writer = await asyncio.open_connection(host, port, loop=self.event_loop)
+        connect_message = ConnectToYate()
+        self._send_message_raw(connect_message.encode())
 
     async def message_processing_loop(self):
         try:

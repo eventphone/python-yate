@@ -77,7 +77,7 @@ class Message:
         id = data[1]
         if reply:
             time = None
-            processed = data[1].lower() == "true"
+            processed = data[2].lower() == "true"
         else:
             processed = None
             try:
