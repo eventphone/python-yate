@@ -1,0 +1,175 @@
+import argparse
+import asyncio
+import os
+import signal
+import logging
+
+from aiohttp import web
+
+from yate.asyncio import YateAsync
+from yate.protocol import MessageRequest
+
+soundfile_extensions = [".slin", ".gsm"]
+
+logging.basicConfig(level=logging.INFO)
+
+
+class SoundCallInfo:
+    def __init__(self, sndfile, delay):
+        self.soundfile = sndfile
+        self.delay = delay
+        self.answered = False
+
+
+class YateCallGenerator:
+    def __init__(self, port, sounds_directory):
+        logging.info("Initializing application for extmodul yate on port {} and sounds at {}"
+                     .format(port, sounds_directory))
+        self.shutdown_future = None
+
+        self.active_calls = {}
+        self.yate = YateAsync("127.0.0.1", port)
+        self.sounds_directory = sounds_directory
+
+        self.web_app = web.Application()
+        self.web_app.add_routes([web.post("/call", self.web_call_handler)])
+        self.app_runner = web.AppRunner(self.web_app)
+
+    def run(self):
+        # Fire up async processing
+        logging.info("Init YateAsync")
+        self.yate.run(self.application_main)
+
+    async def application_main(self, yate):
+        logging.info("Starting application main")
+        self.shutdown_future = asyncio.get_event_loop().create_future()
+        asyncio.get_event_loop().add_signal_handler(signal.SIGINT, self.shutdown)
+
+        if not await self.yate.register_watch_handler_async("call.answered", self._call_answered_handler):
+            logging.error("Cannot watch call.answered.")
+            return
+        if not await self.yate.register_watch_handler_async("chan.notify", self._chan_notify_handler):
+            logging.error("Cannot watch chan.notify.")
+            return
+        if not await self.yate.register_watch_handler_async("chan.hangup", self._chan_hangup_handler):
+            logging.error("Cannot watch chan.hangup")
+            return
+        logging.info("Yate ready. Starting webserver.")
+
+        # fire up http server
+        await self.app_runner.setup()
+        site = web.TCPSite(self.app_runner, 'localhost', 8080)
+        await site.start()
+        logging.info("Webserver ready. Waiting for requests...")
+
+        # We wait to be signaled for shutdown.
+        await self.shutdown_future
+        logging.info("Shutting down...")
+        await self.app_runner.cleanup()
+
+    def shutdown(self):
+        self.shutdown_future.set_result(True)
+
+    async def web_call_handler(self, request):
+        params = await request.post()
+        soundfile = params.get("soundfile")
+        delay = params.get("delay")
+        target = params.get("target")
+        max_ringtime = params.get("max_ringtime")
+        if any((soundfile is None, delay is None, target is None)):
+            return web.Response(status=400, text="Provide <soundfile>, <delay> and <target>")
+        if not delay.isnumeric():
+            return web.Response(status=400, text="<delay> needs to be numeric")
+        delay = int(delay)
+        if max_ringtime is not None:
+            if not max_ringtime.isnumeric():
+                return web.Response(status=400, text="<max_ringtime> needs to be numeric")
+            else:
+                max_ringtime = int(max_ringtime)
+
+        sound_path = self.find_soundfile(soundfile)
+        if sound_path is None:
+            return web.Response(status=404, text="Soundfile {} not found".format(soundfile))
+
+        call_execute_message = MessageRequest("call.execute", {
+            "callto": "dumb/",
+            "target": target,
+            "autoanswer": "yes"
+        })
+        result = await self.yate.send_message_async(call_execute_message)
+        if not result.processed:
+            return web.Response(status=404, text="Call.execute failed. Invalid target?")
+
+        id = result.params["id"]
+        call_info = SoundCallInfo(sound_path, delay)
+        self.active_calls[id] = call_info
+        if max_ringtime is not None:
+            asyncio.get_event_loop().call_later(max_ringtime, self.drop_call_if_not_answered, id)
+
+        return web.Response(text="OK :-)")
+
+    def _call_answered_handler(self, msg):
+        peer = msg.params["peerid"]
+        if peer in self.active_calls:
+            call_info = self.active_calls[peer]
+            asyncio.get_event_loop().call_later(call_info.delay,
+                                                lambda: asyncio.get_event_loop()
+                                                .create_task(self.start_sound_playback(peer, call_info.soundfile)))
+
+    def _chan_notify_handler(self, msg):
+        id = msg.params.get("targetid")
+        if id not in self.active_calls:
+            return
+        if msg.params.get("reason", "") != "eof":
+            return
+        self._drop_call(id)
+
+    def _drop_call(self, id):
+        drop_msg = MessageRequest("call.drop", {"id": id})
+        self.yate.send_message(drop_msg, fire_and_forget=True)
+        del self.active_calls[id]
+
+    def _chan_hangup_handler(self, msg):
+        id = msg.params["id"]
+        if id in self.active_calls:
+            del self.active_calls[id]
+
+    async def start_sound_playback(self, peer, soundfile):
+        if peer not in self.active_calls:
+            return # remote may have hung up
+        attach_msg = MessageRequest("chan.masquerade", {
+            "message": "chan.attach",
+            "id": peer,
+            "source": "wave/play/" + soundfile,
+            "notify": peer,
+        })
+        await self.yate.send_message_async(attach_msg)
+
+    def drop_call_if_not_answered(self, id):
+        if id not in self.active_calls:
+            return
+        if not self.active_calls[id].answered:
+            self._drop_call(id)
+
+
+    def find_soundfile(self, name):
+        for root, _, files in os.walk(self.sounds_directory):
+            for f in files:
+                fname, fext = os.path.splitext(f)
+                if fname == name and fext in soundfile_extensions:
+                    return os.path.join(root, f)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument("port", type=int, help="The port at which yate is listening")
+    parser.add_argument("sounds_directory", type=str, help="The directory at which we find the sounds")
+
+    args = parser.parse_args()
+    app = YateCallGenerator(args.port, args.sounds_directory)
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
+
