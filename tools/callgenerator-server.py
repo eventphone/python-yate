@@ -22,7 +22,7 @@ class SoundCallInfo:
 
 
 class YateCallGenerator:
-    def __init__(self, port, sounds_directory):
+    def __init__(self, port, sounds_directory, bind_global=False):
         logging.info("Initializing application for extmodul yate on port {} and sounds at {}"
                      .format(port, sounds_directory))
         self.shutdown_future = None
@@ -34,9 +34,9 @@ class YateCallGenerator:
         self.web_app = web.Application()
         self.web_app.add_routes([web.post("/call", self.web_call_handler)])
         self.app_runner = web.AppRunner(self.web_app)
+        self.bind_global = bind_global
 
     def run(self):
-        # Fire up async processing
         logging.info("Init YateAsync")
         self.yate.run(self.application_main)
 
@@ -57,10 +57,11 @@ class YateCallGenerator:
         logging.info("Yate ready. Starting webserver.")
 
         # fire up http server
+        bind = None if self.bind_global else "localhost"
         await self.app_runner.setup()
-        site = web.TCPSite(self.app_runner, 'localhost', 8080)
+        site = web.TCPSite(self.app_runner, bind, 8080)
         await site.start()
-        logging.info("Webserver ready. Waiting for requests...")
+        logging.info("Webserver ready. Waiting for requests {}.".format("globally" if self.bind_global else "locally"))
 
         # We wait to be signaled for shutdown.
         await self.shutdown_future
@@ -72,12 +73,15 @@ class YateCallGenerator:
 
     async def web_call_handler(self, request):
         params = await request.post()
+
         soundfile = params.get("soundfile")
         delay = params.get("delay")
         target = params.get("target")
+        caller = params.get("caller", "")
         max_ringtime = params.get("max_ringtime")
+
         if any((soundfile is None, delay is None, target is None)):
-            return web.Response(status=400, text="Provide <soundfile>, <delay> and <target>")
+            return web.Response(status=400, text="Provide at least <soundfile>, <delay> and <target>")
         if not delay.isnumeric():
             return web.Response(status=400, text="<delay> needs to be numeric")
         delay = int(delay)
@@ -94,7 +98,8 @@ class YateCallGenerator:
         call_execute_message = MessageRequest("call.execute", {
             "callto": "dumb/",
             "target": target,
-            "autoanswer": "yes"
+            "autoanswer": "yes",
+            "caller": caller,
         })
         result = await self.yate.send_message_async(call_execute_message)
         if not result.processed:
@@ -112,6 +117,7 @@ class YateCallGenerator:
         peer = msg.params["peerid"]
         if peer in self.active_calls:
             call_info = self.active_calls[peer]
+            call_info.answered = True
             asyncio.get_event_loop().call_later(call_info.delay,
                                                 lambda: asyncio.get_event_loop()
                                                 .create_task(self.start_sound_playback(peer, call_info.soundfile)))
@@ -151,7 +157,6 @@ class YateCallGenerator:
         if not self.active_calls[id].answered:
             self._drop_call(id)
 
-
     def find_soundfile(self, name):
         for root, _, files in os.walk(self.sounds_directory):
             for f in files:
@@ -161,12 +166,13 @@ class YateCallGenerator:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='Yate CLI to generate automated calls.')
     parser.add_argument("port", type=int, help="The port at which yate is listening")
     parser.add_argument("sounds_directory", type=str, help="The directory at which we find the sounds")
+    parser.add_argument("--bind_global", action="store_true")
 
     args = parser.parse_args()
-    app = YateCallGenerator(args.port, args.sounds_directory)
+    app = YateCallGenerator(args.port, args.sounds_directory, args.bind_global)
     app.run()
 
 
