@@ -1,32 +1,42 @@
-def yate_decode_bytes(byte_input):
-    output = b""
-    escaped = False
-    for b in byte_input:
-        if escaped:
-            if b == ord("%"):
-                output += bytes([b])
-            else:
-                if b < 64:
-                    raise YateMessageParsingError("Received invalid yate encoding: {} after %".format(hex(b)))
-                output += bytes([(b-64)])
-            escaped = False
-        else:
-            if b == ord("%"):
-                escaped = True
-            else:
-                output += bytes([b])
-    return output
+ORD_PERCENT = ord("%")
+ORD_COLON = ord(":")
 
 
-def yate_encode_bytes(byte_input):
+def yate_decode_bytes(byte_input: bytes):
     output = b""
-    for b in byte_input:
-        if b < 32 or b == ord(":"):
-            output += b"%"+bytes([(b+64)])
-        elif b == ord("%"):
+    view = memoryview(byte_input)
+    pos = 0
+    try:
+        while True:
+            next_percent = byte_input.find(ORD_PERCENT, pos)
+            if next_percent < 0:
+                return output + view[pos:]
+            output += view[pos:next_percent]
+            if view[next_percent+1] == ORD_PERCENT:
+                output += b"%"
+            else:
+                output += (view[next_percent+1]-64).to_bytes(1, "big")
+            pos = next_percent+2
+    except IndexError:
+        raise YateMessageParsingError("Received invalid yate message. Upcode without encoded character")
+    except ValueError:
+        raise YateMessageParsingError("Received invalid upcode: Encoded character too small")
+
+
+def yate_encode_bytes(byte_input: bytes):
+    output = b""
+    view = memoryview(byte_input)
+    pos = 0
+    for i in range(len(byte_input)):
+        if view[i] < 32 or view[i] == ORD_COLON:
+            output += view[pos:i]
+            output += b"%" + (view[i]+64).to_bytes(1, "big")
+            pos = i+1
+        elif view[i] == ORD_PERCENT:
+            output += view[pos:i]
             output += b"%%"
-        else:
-            output += bytes([b])
+            pos = i+1
+    output += view[pos:]
     return output
 
 
