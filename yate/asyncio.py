@@ -8,8 +8,9 @@ from yate.protocol import MessageRequest, Message, ConnectToYate
 class YateAsync(yate.YateBase):
     MODE_STDIO = 1
     MODE_TCP = 2
+    MODE_UNIX = 3
 
-    def __init__(self, host=None, port=None):
+    def __init__(self, host=None, port=None, sockpath=None):
         super().__init__()
         self.event_loop = asyncio.SelectorEventLoop()
         asyncio.set_event_loop(self.event_loop)
@@ -21,6 +22,9 @@ class YateAsync(yate.YateBase):
             self.mode = self.MODE_TCP
             self.host = host
             self.port = port
+        elif sockpath is not None:
+            self.mode = self.MODE_UNIX
+            self.sockpath = sockpath
         else:
             self.mode = self.MODE_STDIO
 
@@ -34,6 +38,8 @@ class YateAsync(yate.YateBase):
             await self.setup_for_stdio()
         elif self.mode == self.MODE_TCP:
             await self.setup_for_tcp(self.host, self.port)
+        elif self.mode == self.MODE_UNIX:
+            await self.setup_for_unix(self.sockpath)
         else:
             raise NotImplementedError("Unknown mode of operation found")
 
@@ -61,8 +67,11 @@ class YateAsync(yate.YateBase):
 
     async def setup_for_tcp(self, host, port):
         self.reader, self.writer = await asyncio.open_connection(host, port, loop=self.event_loop)
-        connect_message = ConnectToYate()
-        self._send_message_raw(connect_message.encode())
+        self.send_connect()
+
+    async def setup_for_unix(self, sockpath):
+        self.reader, self.writer = await asyncio.open_unix_connection(sockpath, loop=self.event_loop)
+        self.send_connect()
 
     async def message_processing_loop(self):
         try:
