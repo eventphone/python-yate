@@ -78,6 +78,7 @@ class YateCallGenerator:
         delay = params.get("delay")
         target = params.get("target")
         caller = params.get("caller", "")
+        callername = params.get("callername", "")
         max_ringtime = params.get("max_ringtime")
 
         if any((soundfile is None, delay is None, target is None)):
@@ -100,6 +101,7 @@ class YateCallGenerator:
             "target": target,
             "autoanswer": "yes",
             "caller": caller,
+            "callername": callername,
         })
         result = await self.yate.send_message_async(call_execute_message)
         if not result.processed:
