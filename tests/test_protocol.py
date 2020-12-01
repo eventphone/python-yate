@@ -93,6 +93,32 @@ class MessageDeserializationTestCases(unittest.TestCase):
         self.assertEqual("call.execute", result.name)
         self.assertEqual(True, result.success)
 
+    def test_parse_setlocal_message(self):
+        result = protocol.parse_yate_message(b"%%>setlocal:id:mychan0")
+        self.assertEqual("setlocal", result.msg_type)
+        self.assertEqual("id", result.param)
+        self.assertEqual("mychan0", result.value)
+
+    def test_parse_setlocal_param_request_message(self):
+        result = protocol.parse_yate_message(b"%%>setlocal:engine.version:")
+        self.assertEqual("setlocal", result.msg_type)
+        self.assertEqual("engine.version", result.param)
+        self.assertEqual("", result.value)
+
+    def test_parse_setlocal_positive_answer(self):
+        result = protocol.parse_yate_message(b"%%<setlocal:id:mychan0:true")
+        self.assertEqual("setlocal", result.msg_type)
+        self.assertEqual("id", result.param)
+        self.assertEqual("mychan0", result.value)
+        self.assertTrue(result.success)
+
+    def test_parse_setlocal_negative_answer(self):
+        result = protocol.parse_yate_message(b"%%<setlocal:id:oldchan:false")
+        self.assertEqual("setlocal", result.msg_type)
+        self.assertEqual("id", result.param)
+        self.assertEqual("oldchan", result.value)
+        self.assertFalse(result.success)
+
 
 class MessageSerializationTestCases(unittest.TestCase):
     def test_encode_yate_install_mgs(self):
@@ -176,10 +202,31 @@ class MessageSerializationTestCases(unittest.TestCase):
         result = msg.encode()
         self.assertEqual(b"%%<unwatch:chan.dtmf:true", result)
 
+    def test_encode_setlocal_request(self):
+        msg = protocol.SetLocalRequest("id", "mychan0")
+        result = msg.encode()
+        self.assertEqual(b"%%>setlocal:id:mychan0", result)
+
+    def test_encode_setlocal_request_query_param(self):
+        msg = protocol.SetLocalRequest("engine.version")
+        result = msg.encode()
+        self.assertEqual(b"%%>setlocal:engine.version:", result)
+
+    def test_encode_setlocal_answer_success(self):
+        msg = protocol.SetLocalAnswer("id", "mychan0", True)
+        result = msg.encode()
+        self.assertEqual(b"%%<setlocal:id:mychan0:true", result)
+
+    def test_encode_setlocal_answer_failed(self):
+        msg = protocol.SetLocalAnswer("id", "oldchan", False)
+        result = msg.encode()
+        self.assertEqual(b"%%<setlocal:id:oldchan:false", result)
+
     def test_encode_connect_message(self):
         msg = protocol.ConnectToYate()
         result = msg.encode()
         self.assertEqual(b"%%>connect:global", result)
+
 
 if __name__ == '__main__':
     unittest.main()
