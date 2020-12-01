@@ -5,6 +5,7 @@ import sys
 from yate import yate
 from yate.protocol import MessageRequest, Message, ConnectToYate
 
+
 class YateAsync(yate.YateBase):
     MODE_STDIO = 1
     MODE_TCP = 2
@@ -17,6 +18,7 @@ class YateAsync(yate.YateBase):
         self.reader = None
         self.writer = None
         self.main_task = None
+        self._automatic_bufsize = False
 
         if host is not None:
             self.mode = self.MODE_TCP
@@ -87,6 +89,16 @@ class YateAsync(yate.YateBase):
         self.event_loop.stop()
 
     def _send_message_raw(self, msg):
+        if self._automatic_bufsize:
+            yate_buf_required = len(msg) + 2 # plus \n and \0 terminator in yate
+            if yate_buf_required > int(self.get_local("bufsize")):
+                def deferred_msg_write(_param, _value, _success):
+                    # defer writing the message that is too long until the bufsize was adapted
+                    self.writer.write(msg + b"\n")
+                # round to next kb
+                requested_bufsize = ((yate_buf_required // 1024) + 1) * 1024
+                self.set_local("bufsize", str(requested_bufsize), done_callback=deferred_msg_write)
+                return
         self.writer.write(msg + b"\n")
 
     async def drain(self):
@@ -123,3 +135,30 @@ class YateAsync(yate.YateBase):
         self.send_message(msg, _done_callback)
         await future
         return future.result()
+
+    async def set_local_async(self, param, value):
+        future = asyncio.get_event_loop().create_future()
+
+        def done_callback(_param, _value, success):
+            future.set_result(success)
+
+        self.set_local(param, value, done_callback=done_callback)
+        await future
+        return future.result()
+
+    async def get_local_async(self, param):
+        if param in self._local_params:
+            return self._local_params[param]
+
+        future = asyncio.get_event_loop().create_future()
+
+        def done_callback(_param, value, _success):
+            future.set_result(value)
+
+        self.set_local(param, "", done_callback=done_callback)
+        await future
+        return future.result()
+
+    async def activate_automatic_bufsize(self):
+        await self.get_local_async("bufsize")
+        self._automatic_bufsize = True

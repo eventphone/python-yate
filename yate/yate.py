@@ -3,7 +3,7 @@ import random
 import string
 import time
 
-from yate.protocol import parse_yate_message, InstallRequest, UninstallRequest, WatchRequest, UnwatchRequest, ConnectToYate
+from yate.protocol import parse_yate_message, InstallRequest, UninstallRequest, WatchRequest, UnwatchRequest, ConnectToYate, SetLocalRequest
 
 logger = logging.getLogger("yate")
 
@@ -46,6 +46,8 @@ class YateBase:
         self._message_handlers = {}
         self._watch_handlers = {}
         self._requested_messages = {}
+        self._local_params = {}
+        self._local_param_handlers = {}
         self._msg_id = 1
         self._session_id = session_id_generator()
 
@@ -89,6 +91,15 @@ class YateBase:
             handler.uninstalled = True
         else:
             del self._watch_handlers[message]
+
+    def set_local(self, param, value, done_callback=None):
+        if done_callback is not None:
+            self._local_param_handlers[param] = done_callback
+        setlocal_msg = SetLocalRequest(param, value)
+        self._send_message_raw(setlocal_msg.encode())
+
+    def get_local(self, param):
+        return self._local_params.get(param)
 
     def send_message(self, msg, callback=None, fire_and_forget=False):
         msg_id = self._msg_id
@@ -140,6 +151,12 @@ class YateBase:
             logger.warning("Yate notified us that {} is not watched anymore though we didn't request it".format(msg.name))
             return
         del self._watch_handlers[msg.name]
+
+    def _handle_yate_setlocal(self, msg):
+        self._local_params[msg.param] = msg.value
+        if msg.param in self._local_param_handlers:
+            self._local_param_handlers[msg.param](msg.param, msg.value, msg.success)
+            del self._local_param_handlers[msg.param]
 
     def _handle_yate_message(self, msg):
         if msg.reply is False:

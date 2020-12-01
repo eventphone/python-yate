@@ -8,7 +8,7 @@ with open(os.path.join(this_dir, "README.md"), "r") as f:
 
 setup(
     name='python-yate',
-    version='0.2',
+    version='0.3',
     packages=['yate'],
     url='https://github.com/eventphone/python-yate',
     license='MIT',
@@ -19,8 +19,9 @@ setup(
     description='An (asyncio enabled) python library for yate IVRs and extmodules',
     classifiers=[
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "License :: OSI Approved :: MIT License",
     ],
     install_requires=[

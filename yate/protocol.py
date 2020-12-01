@@ -274,6 +274,42 @@ class UnwatchConfirm:
         return yate_encode_join("%<unwatch", self.name, str(self.success).lower())
 
 
+class SetLocalRequest:
+    def __init__(self, param, value=None):
+        self.msg_type = "setlocal"
+        self.param = param
+        self.value = value or ""
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) < 2:
+            raise YateMessageParsingError("Invalid setlocal request with {} parameters".format(len(data)))
+        elif len(data) == 2:
+            return cls(data[1])
+        return cls(data[1], data[2])
+
+    def encode(self):
+        return yate_encode_join("%>setlocal", self.param, self.value)
+
+
+class SetLocalAnswer:
+    def __init__(self, param, value, success):
+        self.msg_type = "setlocal"
+        self.param = param
+        self.value = value
+        self.success = success
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 4:
+            raise YateMessageParsingError("Invalid setlocal answer with {} parameters".format(len(data)))
+        success = data[3].lower() == "true"
+        return cls(data[1], data[2], success)
+
+    def encode(self):
+        return yate_encode_join("%<setlocal", self.param, self.value, str(self.success).lower())
+
+
 class ConnectToYate:
     def __init__(self, role="global", id=None, type=None):
         self.role = role
@@ -300,4 +336,6 @@ _yate_message_type_table = {
     "%<watch": WatchConfirm,
     "%>unwatch": UnwatchRequest,
     "%<unwatch": UnwatchConfirm,
+    "%>setlocal": SetLocalRequest,
+    "%<setlocal": SetLocalAnswer,
 }

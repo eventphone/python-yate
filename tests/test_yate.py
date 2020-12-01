@@ -234,5 +234,23 @@ class YateConnectTests(unittest.TestCase):
         mock_method.assert_called_with(b"%%>connect:global")
 
 
+class YateSetLocalTests(unittest.TestCase):
+    def setUp(self):
+        self.y = YateBase()
+
+    @patch.object(YateBase, "_send_message_raw")
+    def test_setlocal(self, mock_method):
+        done_callback_mock = MagicMock()
+        self.y.set_local("id", "mychan0", done_callback=done_callback_mock)
+        done_callback_mock.assert_not_called()
+        self.assertIn("id", self.y._local_param_handlers)
+        mock_method.assert_called_with(b"%%>setlocal:id:mychan0")
+
+        self.y._recv_message_raw(b"%%<setlocal:id:mychan0:true")
+        done_callback_mock.assert_called_with("id", "mychan0", True)
+        self.assertEqual(self.y.get_local("id"), "mychan0")
+        self.assertNotIn("id", self.y._local_param_handlers)
+
+
 if __name__ == '__main__':
     unittest.main()
