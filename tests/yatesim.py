@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import Queue, CancelledError
 from unittest.mock import MagicMock
 
@@ -105,7 +106,10 @@ class YateSimAsyncMixin:
             while True:
                 raw_message = await self._mock_message_queue.get()
                 if raw_message == b"":
-                    break  # push empty messages to deliberately stop processing
+                    # we only receive empty bytes if this is EOF, notify our program and terminate message
+                    # processing loop
+                    asyncio.create_task(self._yate_stream_closed())
+                    break
                 raw_message = raw_message.strip()
                 self._recv_message_raw(raw_message)
             # once message processing ends, the whole application should terminate

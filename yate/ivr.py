@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from enum import Enum
 from typing import Optional, Callable
 
@@ -29,7 +30,11 @@ class YateIVR(YateAsync):
         self._call_ready_future = asyncio.get_event_loop().create_future()
         self.dtmf_event = asyncio.Event()
         self.playback_end_event = asyncio.Event()
+        asyncio.get_event_loop().add_signal_handler(signal.SIGTERM, self._handle_sigterm)
         await super()._amain(application_main)
+
+    def _handle_sigterm(self):
+        self.main_task.cancel()
 
     def _initial_call_execute_handler(self, msg):
         self.call_params = msg.params
@@ -48,7 +53,7 @@ class YateIVR(YateAsync):
         self.dtmf_event.set()
         return True
 
-    def _chan_hangup_handler(self, msg):
+    async def _yate_stream_closed(self):
         for func in self._hangup_handlers:
             func()
         self.main_task.cancel()
@@ -59,7 +64,9 @@ class YateIVR(YateAsync):
         Register a function that should be called when the remote end hung up
         the call before the main task is canceled. Multiple functions
         can be registered in this way. They will be called in the order of their
-        registration.
+        registration. Please note that Yate indicates the hangup to us by closing our
+        communication channel. So, no Yate communication is possible in the handlers
+        you register here.
 
         :param func: A callable with no parameters
         """
@@ -229,7 +236,6 @@ class YateIVR(YateAsync):
         await self.register_message_handler_async("chan.notify", self._chan_notify_handler, 100, "targetid",
                                                   self.call_id)
         await self.register_message_handler_async("chan.dtmf", self._chan_dtmf_handler, 100, "id", self.call_id)
-        await self.register_message_handler_async("chan.hangup", self._chan_hangup_handler, 100, "id", self.call_id)
         self._call_ready_future.set_result(None)
 
     async def _amain_ready(self):
