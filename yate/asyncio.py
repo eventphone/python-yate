@@ -77,7 +77,10 @@ class YateAsync(yate.YateBase):
             while True:
                 raw_message = await self.reader.readline()
                 if raw_message == b"":
-                    break  # we only receive empty bytes if this is EOF, then terminate
+                    # we only receive empty bytes if this is EOF, notify our program and terminate message
+                    # processing loop
+                    asyncio.create_task(self._yate_stream_closed())
+                    break
                 raw_message = raw_message.strip()
                 self._recv_message_raw(raw_message)
             # once message processing ends, the whole application should terminate
@@ -96,6 +99,9 @@ class YateAsync(yate.YateBase):
                 self.set_local("bufsize", str(requested_bufsize), done_callback=deferred_msg_write)
                 return
         self.writer.write(msg + b"\n")
+
+    async def _yate_stream_closed(self):
+        pass
 
     async def drain(self):
         await self.writer.drain()

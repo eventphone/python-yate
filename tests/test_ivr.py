@@ -28,26 +28,24 @@ class YateIVRBaseTests(unittest.TestCase):
 
     async def ivr_message_handler_setup_test(self, ivr):
         self.assertSetEqual(set(self.ys.installed_message_handlers.keys()),
-                            set(["chan.notify", "chan.dtmf", "chan.hangup"]))
+                            set(["chan.notify", "chan.dtmf"]))
         notify = self.ys.installed_message_handlers.get("chan.notify")
         self.check_message_handler(notify, 100, "targetid", "sip/1")
 
         dtmf = self.ys.installed_message_handlers.get("chan.dtmf")
         self.check_message_handler(dtmf, 100, "id", "sip/1")
 
-        hangup = self.ys.installed_message_handlers.get("chan.hangup")
-        self.check_message_handler(hangup, 100, "id", "sip/1")
-
     def test_ivr_message_handler_setup(self):
         self.ys.generate_call_execute("sip/1")
         self.ivr.run(self.ivr_message_handler_setup_test)
 
     async def simulate_hangup(self, ivr):
+        # When the call is hung up, yate will close our stdin.
         def hangupHandler():
             self.hangup = True
         ivr.register_hangup_handler(hangupHandler)
-        hangupMsg = protocol.MessageRequest("chan.hangup", {"id": "sip/1"})
-        self.ys.enqueue_yate_message_request(hangupMsg)
+        # simulate channel termination by adding an empty message
+        self.ys.enqueue_yate_message_raw(b"")
         await asyncio.sleep(10)
 
     def test_hangup_handler(self):
