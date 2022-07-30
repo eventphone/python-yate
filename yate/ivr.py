@@ -16,19 +16,25 @@ class ChannelEventType(Enum):
 class YateIVR(YateAsync):
     def __init__(self):
         super().__init__()
-        self._call_ready_future = self.event_loop.create_future()
+        self._call_ready_future = None
         self.call_params = {}
         self.dtmf_buffer = ""
-        self.dtmf_event = asyncio.Event(loop=self.event_loop)
-        self.playback_end_event = asyncio.Event(loop=self.event_loop)
+        self.dtmf_event = None
+        self.playback_end_event = None
         self._hangup_handlers = []
         # register a listener that takes the call.execute message from yate for the incoming call
         self.register_message_handler("call.execute", self._initial_call_execute_handler, install=False)
 
+    async def _amain(self, application_main):
+        self._call_ready_future = asyncio.get_event_loop().create_future()
+        self.dtmf_event = asyncio.Event()
+        self.playback_end_event = asyncio.Event()
+        await super()._amain(application_main)
+
     def _initial_call_execute_handler(self, msg):
         self.call_params = msg.params
         self.call_id = msg.params["id"]
-        self.event_loop.create_task(self._install_ivr_handlers())
+        asyncio.create_task(self._install_ivr_handlers())
         self.unregister_message_handler("call.execute")
         return True  # Acknowledge that we accepted the call
 
@@ -98,7 +104,7 @@ class YateIVR(YateAsync):
 
         await self._send_record_message(path)
         if time_limit_s is not None:
-            t = self.event_loop.create_task(_stop_function(self))
+            t = asyncio.create_task(_stop_function(self))
             return t
 
     async def record_audio_wait(self, path: str, time_limit_s: float) -> bool:
@@ -143,7 +149,7 @@ class YateIVR(YateAsync):
         """
         local_buf = ""
         try:
-            with async_timeout.timeout(timeout_s):
+            async with async_timeout.timeout(timeout_s):
                 self.dtmf_buffer = ""
                 while True:
                     await self.dtmf_event.wait()
@@ -170,7 +176,7 @@ class YateIVR(YateAsync):
         """
         result = ""
         try:
-            with async_timeout.timeout(timeout_s):
+            async with async_timeout.timeout(timeout_s):
                 self.dtmf_buffer = ""
                 for _ in range(count):
                     await self.dtmf_event.wait()
@@ -207,8 +213,8 @@ class YateIVR(YateAsync):
         :param timeout_s: Maximum of seconds to wait for a channel event.
         :return: The type of event that occurred or None if a timeout occurred
         """
-        dtmf_waiter = self.event_loop.create_task(self.dtmf_event.wait())
-        play_waiter = self.event_loop.create_task(self.playback_end_event.wait())
+        dtmf_waiter = asyncio.create_task(self.dtmf_event.wait())
+        play_waiter = asyncio.create_task(self.playback_end_event.wait())
         done, pending = await asyncio.wait([dtmf_waiter, play_waiter], timeout=timeout_s, return_when=asyncio.FIRST_COMPLETED)
         for t in pending:
             t.cancel()

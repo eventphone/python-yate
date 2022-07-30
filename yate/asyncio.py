@@ -13,8 +13,6 @@ class YateAsync(yate.YateBase):
 
     def __init__(self, host=None, port=None, sockpath=None):
         super().__init__()
-        self.event_loop = asyncio.SelectorEventLoop()
-        asyncio.set_event_loop(self.event_loop)
         self.reader = None
         self.writer = None
         self.main_task = None
@@ -31,9 +29,7 @@ class YateAsync(yate.YateBase):
             self.mode = self.MODE_STDIO
 
     def run(self, application_main):
-        self.main_task = self.event_loop.create_task(self._amain(application_main))
-        self.event_loop.run_until_complete(self.main_task)
-        self.event_loop.close()
+        asyncio.run(self._amain(application_main))
 
     async def _amain(self, application_main):
         if self.mode == self.MODE_STDIO:
@@ -46,11 +42,12 @@ class YateAsync(yate.YateBase):
             raise NotImplementedError("Unknown mode of operation found")
 
         # now start event processing for yate messages
-        message_loop_task = self.event_loop.create_task(self.message_processing_loop())
+        message_loop_task = asyncio.create_task(self.message_processing_loop())
         # then let the main program run
         await self._amain_ready()
         try:
-            await application_main(self)
+            self.main_task = asyncio.create_task(application_main(self))
+            await self.main_task
         except asyncio.CancelledError as e:
             pass # We clean up even when the main task is cancelled
         self.writer.close()
@@ -62,17 +59,17 @@ class YateAsync(yate.YateBase):
     async def setup_for_stdio(self):
         self.reader = asyncio.StreamReader()
         reader_protocol = asyncio.StreamReaderProtocol(self.reader)
-        await self.event_loop.connect_read_pipe(lambda: reader_protocol, sys.stdin)
+        await asyncio.get_event_loop().connect_read_pipe(lambda: reader_protocol, sys.stdin)
 
-        writer_transport, writer_protocol = await self.event_loop.connect_write_pipe(FlowControlMixin, sys.stdout)
-        self.writer = StreamWriter(writer_transport, writer_protocol, None, self.event_loop)
+        writer_transport, writer_protocol = await asyncio.get_event_loop().connect_write_pipe(FlowControlMixin, sys.stdout)
+        self.writer = StreamWriter(writer_transport, writer_protocol, None, asyncio.get_event_loop())
 
     async def setup_for_tcp(self, host, port):
-        self.reader, self.writer = await asyncio.open_connection(host, port, loop=self.event_loop)
+        self.reader, self.writer = await asyncio.open_connection(host, port)
         self.send_connect()
 
     async def setup_for_unix(self, sockpath):
-        self.reader, self.writer = await asyncio.open_unix_connection(sockpath, loop=self.event_loop)
+        self.reader, self.writer = await asyncio.open_unix_connection(sockpath)
         self.send_connect()
 
     async def message_processing_loop(self):
@@ -86,7 +83,6 @@ class YateAsync(yate.YateBase):
             # once message processing ends, the whole application should terminate
         except asyncio.CancelledError:
             pass
-        self.event_loop.stop()
 
     def _send_message_raw(self, msg):
         if self._automatic_bufsize:
@@ -106,7 +102,7 @@ class YateAsync(yate.YateBase):
 
     async def register_message_handler_async(self, message, callback, priority=100, filter_attribute=None,
                                              filter_value=None):
-        future = self.event_loop.create_future()
+        future = asyncio.get_event_loop().create_future()
 
         def _done_callback(success):
             future.set_result(success)
@@ -117,7 +113,7 @@ class YateAsync(yate.YateBase):
         return future.result()
 
     async def register_watch_handler_async(self, message, callback):
-        future = self.event_loop.create_future()
+        future = asyncio.get_event_loop().create_future()
 
         def _done_callback(success):
             future.set_result(success)
@@ -127,7 +123,7 @@ class YateAsync(yate.YateBase):
         return future.result()
 
     async def send_message_async(self, msg: MessageRequest) -> Message:
-        future = self.event_loop.create_future()
+        future = asyncio.get_event_loop().create_future()
 
         def _done_callback(old_msg, result_msg):
             future.set_result(result_msg)
