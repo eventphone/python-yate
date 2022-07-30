@@ -1,9 +1,12 @@
 import asyncio
 from asyncio.streams import StreamWriter, FlowControlMixin
 import sys
+import logging
 
 from yate import yate
 from yate.protocol import MessageRequest, Message, ConnectToYate
+
+logger = logging.getLogger("yate")
 
 
 class YateAsync(yate.YateBase):
@@ -76,6 +79,7 @@ class YateAsync(yate.YateBase):
         try:
             while True:
                 raw_message = await self.reader.readline()
+                logger.debug("< %s", repr(raw_message.strip()))
                 if raw_message == b"":
                     # we only receive empty bytes if this is EOF, notify our program and terminate message
                     # processing loop
@@ -94,11 +98,14 @@ class YateAsync(yate.YateBase):
                 def deferred_msg_write(_param, _value, _success):
                     # defer writing the message that is too long until the bufsize was adapted
                     self.writer.write(msg + b"\n")
+                    logger.debug("> %s", repr(msg))
                 # round to next kb
                 requested_bufsize = ((yate_buf_required // 1024) + 1) * 1024
+                logger.info("Automatic buffer size increase to %d bytes",  requested_bufsize)
                 self.set_local("bufsize", str(requested_bufsize), done_callback=deferred_msg_write)
                 return
         self.writer.write(msg + b"\n")
+        logger.debug("> %s", repr(msg))
 
     async def _yate_stream_closed(self):
         pass
