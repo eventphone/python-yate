@@ -44,7 +44,7 @@ class TestAsyncMessageHandling(unittest.TestCase):
             if isinstance(msg, Message):
                 msg.return_value = "gotIt"
                 answer = msg.encode_answer_for_yate(True)
-                y.event_loop.call_soon(y._recv_message_raw, answer)
+                asyncio.get_event_loop().call_soon(y._recv_message_raw, answer)
 
         y._send_message_raw = answer_message
 
@@ -54,6 +54,5 @@ class TestAsyncMessageHandling(unittest.TestCase):
             self.assertEqual("gotIt", result.return_value)
             self.complete = True
 
-        y.event_loop.run_until_complete(asyncio.ensure_future(async_testroutine(), loop=y.event_loop))
-        y.event_loop.close()
+        asyncio.run(async_testroutine())
         self.assertTrue(self.complete, "Async operation did not finish")

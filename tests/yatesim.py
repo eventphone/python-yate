@@ -14,6 +14,7 @@ class YateSimMessageHandler:
 class YateSim:
     def __init__(self):
         self._mock_message_queue = None
+        self._early_mock_message_queue = []
         self.installed_message_handlers = {}
         self._msg_id = 1
         self._session_id = "test"
@@ -27,7 +28,18 @@ class YateSim:
         self._mock_message_queue = queue
 
     def enqueue_yate_message_raw(self, yate_msg):
-        self._mock_message_queue.put_nowait(yate_msg)
+        # We need a running loop to setup the asyncio Queue object. So, buffer messages that are
+        # injected in the test startup phase before the loop is running in a static queue. The YateSimAsyncMixin
+        # will call flush_early_mock_message_queue once the real Queue is setup.
+        if self._mock_message_queue:
+            self._mock_message_queue.put_nowait(yate_msg)
+        else:
+            self._early_mock_message_queue.append(yate_msg)
+
+    def flush_early_mock_message_queue(self):
+        for msg in self._early_mock_message_queue:
+            self._mock_message_queue.put_nowait(msg)
+        self._early_mock_message_queue = []
 
     def enqueue_yate_message_request(self, msg_req: protocol.MessageRequest):
         msg_id = self._msg_id
@@ -77,15 +89,16 @@ class YateSim:
 class YateSimAsyncMixin:
     def __init__(self, yatesim: YateSim):
         super().__init__()
-        self._mock_message_queue = Queue(loop=self.event_loop)
+        self._mock_message_queue = None
         self._yate_sim = yatesim
-        self._yate_sim.set_out_message_queue(self._mock_message_queue)
         self.reader = MagicMock()
         self.writer = MagicMock()
 
-    # We don't do the actual communication but hook message handling
     async def setup_for_stdio(self):
-        return
+        # Setup mock message queue while running in event loop
+        self._mock_message_queue = Queue()
+        self._yate_sim.set_out_message_queue(self._mock_message_queue)
+        self._yate_sim.flush_early_mock_message_queue()
 
     async def message_processing_loop(self):
         try:
@@ -98,7 +111,6 @@ class YateSimAsyncMixin:
             # once message processing ends, the whole application should terminate
         except CancelledError:
             pass
-        self.event_loop.stop()
 
     # Hook normal message sending code and send it to the simulator instead
     def _send_message_raw(self, msg):

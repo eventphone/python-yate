@@ -6,3 +6,4 @@ python_yate.egg-info
 __pycache__
 build/
 dist/
+venv
