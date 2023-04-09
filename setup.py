@@ -8,7 +8,7 @@ with open(os.path.join(this_dir, "README.md"), "r") as f:
 
 setup(
     name='python-yate',
-    version='0.4.0',
+    version='0.4.1',
     packages=['yate'],
     url='https://github.com/eventphone/python-yate',
     license='MIT',
@@ -28,4 +28,9 @@ setup(
     install_requires=[
         'async_timeout',
     ],
+    entry_points={
+        "console_scripts": [
+            "yate_callgen=yate.callgen:main",
+        ],
+    },
 )
