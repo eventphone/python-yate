@@ -3,6 +3,7 @@ import asyncio
 import os
 import signal
 import logging
+from pathlib import Path
 
 from aiohttp import web
 
@@ -11,7 +12,6 @@ from yate.protocol import MessageRequest
 
 soundfile_extensions = [".slin", ".gsm"]
 
-logging.basicConfig(level=logging.INFO)
 
 
 class SoundCallInfo:
@@ -29,7 +29,7 @@ class YateCallGenerator:
 
         self.active_calls = {}
         self.yate = YateAsync("127.0.0.1", port)
-        self.sounds_directory = sounds_directory
+        self.sounds_directories = sounds_directory
 
         self.web_app = web.Application()
         self.web_app.add_routes([web.post("/call", self.web_call_handler)])
@@ -72,6 +72,7 @@ class YateCallGenerator:
         self.shutdown_future.set_result(True)
 
     async def web_call_handler(self, request):
+        logging.debug("TRACE: Request handler begin")
         params = await request.post()
 
         soundfile = params.get("soundfile")
@@ -160,20 +161,26 @@ class YateCallGenerator:
             self._drop_call(id)
 
     def find_soundfile(self, name):
-        for root, _, files in os.walk(self.sounds_directory):
-            for f in files:
-                fname, fext = os.path.splitext(f)
-                if fname == name and fext in soundfile_extensions:
-                    return os.path.join(root, f)
-
+        for directory in self.sounds_directories:
+            for ext in soundfile_extensions:
+                test_path = Path(directory) / (name + ext)
+                logging.debug("Testing %s for existence", test_path)
+                if test_path.exists():
+                    return str(test_path)
 
 def main():
     parser = argparse.ArgumentParser(description='Yate CLI to generate automated calls.')
     parser.add_argument("port", type=int, help="The port at which yate is listening")
-    parser.add_argument("sounds_directory", type=str, help="The directory at which we find the sounds")
+    parser.add_argument("sounds_directory", type=str, nargs="+", help="Directories at which we find the sounds")
     parser.add_argument("--bind_global", action="store_true")
+    parser.add_argument("--trace", action="store_true", help="Enable debug tracing")
+
 
     args = parser.parse_args()
+    if args.trace:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
     app = YateCallGenerator(args.port, args.sounds_directory, args.bind_global)
     app.run()
 
