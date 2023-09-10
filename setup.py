@@ -26,6 +26,7 @@ setup(
         "License :: OSI Approved :: MIT License",
     ],
     install_requires=[
+        'aiohttp',
         'async_timeout',
     ],
     entry_points={
