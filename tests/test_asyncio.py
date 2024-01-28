@@ -11,7 +11,7 @@ class TestAsyncYateProgram(unittest.TestCase):
     def test_async_yate_program(self):
         this_dir = os.path.dirname(__file__)
         test_script = os.path.join(this_dir, "asyncio_min.py")
-        p = subprocess.Popen(["python", test_script], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        p = subprocess.Popen(["python3", test_script], stdin=PIPE, stdout=PIPE, stderr=PIPE)
         install_message = p.stdout.readline().strip()
         self.assertEqual(b"%%>install:100:chan.notify", install_message)
         p.stdin.write(b"%%<install:100:chan.notify:true\n")
