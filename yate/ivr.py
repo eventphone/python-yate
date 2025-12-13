@@ -3,8 +3,6 @@ import signal
 from enum import Enum
 from typing import Optional, Callable
 
-import async_timeout
-
 from yate.asyncio import YateAsync
 from yate.protocol import MessageRequest
 
@@ -156,7 +154,7 @@ class YateIVR(YateAsync):
         """
         local_buf = ""
         try:
-            async with async_timeout.timeout(timeout_s):
+            async with asyncio.timeout(timeout_s):
                 self.dtmf_buffer = ""
                 while True:
                     await self.dtmf_event.wait()
@@ -183,7 +181,7 @@ class YateIVR(YateAsync):
         """
         result = ""
         try:
-            async with async_timeout.timeout(timeout_s):
+            async with asyncio.timeout(timeout_s):
                 self.dtmf_buffer = ""
                 for _ in range(count):
                     await self.dtmf_event.wait()
