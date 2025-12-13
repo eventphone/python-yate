@@ -8,7 +8,7 @@ with open(os.path.join(this_dir, "README.md"), "r") as f:
 
 setup(
     name='python-yate',
-    version='0.4.1',
+    version='0.5.0',
     packages=['yate'],
     url='https://github.com/eventphone/python-yate',
     license='MIT',
