@@ -29,6 +29,7 @@ class YateCallGenerator:
 
         self.active_calls = {}
         self.yate = YateAsync("127.0.0.1", port)
+        self.yate.set_termination_handler(self.termination_handler)
         self.sounds_directory = sounds_directory
 
         self.web_app = web.Application()
@@ -70,6 +71,12 @@ class YateCallGenerator:
 
     def shutdown(self):
         self.shutdown_future.set_result(True)
+
+    @staticmethod
+    def termination_handler():
+        logging.info("Yate has closed the connection. Terminating application.")
+        os._exit(1)
+
 
     async def web_call_handler(self, request):
         params = await request.post()

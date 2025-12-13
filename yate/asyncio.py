@@ -20,6 +20,7 @@ class YateAsync(yate.YateBase):
         self.writer = None
         self.main_task = None
         self._automatic_bufsize = False
+        self._termination_handler = None
 
         if host is not None:
             self.mode = self.MODE_TCP
@@ -33,6 +34,9 @@ class YateAsync(yate.YateBase):
 
     def run(self, application_main):
         asyncio.run(self._amain(application_main))
+
+    def set_termination_handler(self, termination_handler):
+        self._termination_handler = termination_handler
 
     async def _amain(self, application_main):
         if self.mode == self.MODE_STDIO:
@@ -108,7 +112,8 @@ class YateAsync(yate.YateBase):
         logger.debug("> %s", repr(msg))
 
     async def _yate_stream_closed(self):
-        pass
+        if self._termination_handler is not None:
+            self._termination_handler()
 
     async def drain(self):
         await self.writer.drain()
