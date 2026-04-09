@@ -93,6 +93,48 @@ class YateIVR(YateAsync):
             await self.playback_end_event.wait()
         return True
 
+    async def play_soundfiles_as_one(self, paths: list[str], complete: bool = False) -> bool:
+        """
+        Play multiple audio files on this channel in a group.
+
+        Playing sound files in a group means the files get played completely one after another without needing complete=True to force waiting and losing the possibility to respond to DTMF events.
+
+        :param paths: list of paths to the audio file locations
+        :param complete: block coroutine until all audio playback has finished, not interrupted by DTMF events.
+        :return: True if the operation was successful, false otherwise
+        """
+
+        async def play_multisound():
+            for path in paths:
+                msg_params = {
+                    "source": f"wave/play/{path}",
+                    "notify": self.call_id,
+                }
+                play_msg = MessageRequest("chan.attach", msg_params)
+                self.playback_end_event.clear()
+                await self.send_message_async(play_msg)
+
+                cur_playback_done = False
+                while not cur_playback_done:
+                    event_type = await self.wait_channel_event()
+                    if event_type == ChannelEventType.DTMF:
+                        if complete:
+                            self.dtmf_event.clear()
+                            continue  # Ignore the event
+                        break
+                    elif event_type == ChannelEventType.PLAYBACK_END:
+                        cur_playback_done = True
+                    else:
+                        break  # Unknown event...
+                if not cur_playback_done:  # Aborted by DTMF or unknown event
+                    break
+
+        multisound_task = asyncio.create_task(play_multisound())
+        if complete:
+            # Block till all sounds have been played.
+            await multisound_task
+        return True
+
     async def record_audio(self, path: str, time_limit_s: float = None) -> Optional[asyncio.Future]:
         """
         Start audio recording on this channel
